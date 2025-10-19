@@ -87,7 +87,6 @@ if(NOT LIBMGBA_ONLY)
 	set(USE_EPOXY OFF CACHE STRING "Build with libepoxy")
 	set(DISABLE_DEPS OFF CACHE BOOL "Build without dependencies")
 	set(DISTBUILD OFF CACHE BOOL "Build distribution packages")
-	set(ENABLE_VFS ON CACHE BOOL "Whether or not to enable vfs")
 	if(WIN32)
 		set(WIN32_UNIX_PATHS OFF CACHE BOOL "Use Unix-like paths")
 		mark_as_advanced(WIN32_UNIX_PATHS)
@@ -106,6 +105,8 @@ else()
 		set(M_CORE_GB ON)
 	endif()
 endif()
+
+
 
 file(GLOB THIRD_PARTY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/third-party/inih/*.c)
 set(CORE_VFS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/util/vfs/vfs-mem.c ${CMAKE_CURRENT_SOURCE_DIR}/src/util/vfs/vfs-fifo.c)
