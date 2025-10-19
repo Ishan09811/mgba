@@ -157,6 +157,27 @@ bool mCoreLoadFile(struct mCore* core, const char* path) {
 #endif
 }
 
+#if defined(ENABLE_VFS)
+bool mCoreLoadFD(struct mCore* core, int fd) {
+    core->unloadROM(core);
+    struct VFile* rom = VFileFromFD(fd)
+    if (rom && !core->isROM(rom)) {
+		rom->close(rom);
+		rom = NULL;
+	}
+
+    if (!rom) {
+		return false;
+	}
+
+    bool ret = core->loadROM(core, rom);
+	if (!ret) {
+		rom->close(rom);
+	}
+	return ret;
+}
+#endif
+
 bool mCorePreloadVF(struct mCore* core, struct VFile* vf) {
 	return mCorePreloadVFCB(core, vf, NULL, NULL);
 }
