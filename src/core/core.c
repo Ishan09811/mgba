@@ -30,6 +30,9 @@
 #ifndef MINIMAL_CORE
 #include <mgba/feature/video-logger.h>
 #endif
+#ifdef ENABLE_VFS
+#pragma message("__ENABLE_VFS__ defined")
+#endif
 
 static const struct mCoreFilter {
 	bool (*filter)(struct VFile*);
