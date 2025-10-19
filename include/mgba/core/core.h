@@ -176,7 +176,6 @@ struct mCore {
 #ifdef ENABLE_VFS
 struct mCore* mCoreFind(const char* path);
 bool mCoreLoadFile(struct mCore* core, const char* path);
-bool mCoreLoadFD(struct mCore* core, int fd);
 
 bool mCorePreloadVF(struct mCore* core, struct VFile* vf);
 bool mCorePreloadFile(struct mCore* core, const char* path);
@@ -204,6 +203,8 @@ bool mCoreTakeScreenshotVF(struct mCore* core, struct VFile* vf);
 struct mCore* mCoreFindVF(struct VFile* vf);
 enum mPlatform mCoreIsCompatible(struct VFile* vf);
 struct mCore* mCoreCreate(enum mPlatform);
+
+bool mCoreLoadFD(struct mCore* core, int fd);
 
 bool mCoreSaveStateNamed(struct mCore* core, struct VFile* vf, int flags);
 bool mCoreLoadStateNamed(struct mCore* core, struct VFile* vf, int flags);
