@@ -30,9 +30,6 @@
 #ifndef MINIMAL_CORE
 #include <mgba/feature/video-logger.h>
 #endif
-#ifdef ENABLE_VFS
-#pragma message("__ENABLE_VFS__ defined")
-#endif
 
 static const struct mCoreFilter {
 	bool (*filter)(struct VFile*);
@@ -160,7 +157,6 @@ bool mCoreLoadFile(struct mCore* core, const char* path) {
 #endif
 }
 
-#if defined(ENABLE_VFS)
 bool mCoreLoadFD(struct mCore* core, int fd) {
     core->unloadROM(core);
     struct VFile* rom = VFileFromFD(fd);
@@ -179,7 +175,6 @@ bool mCoreLoadFD(struct mCore* core, int fd) {
 	}
 	return ret;
 }
-#endif
 
 bool mCorePreloadVF(struct mCore* core, struct VFile* vf) {
 	return mCorePreloadVFCB(core, vf, NULL, NULL);
