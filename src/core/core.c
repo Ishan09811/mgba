@@ -160,7 +160,7 @@ bool mCoreLoadFile(struct mCore* core, const char* path) {
 #if defined(ENABLE_VFS)
 bool mCoreLoadFD(struct mCore* core, int fd) {
     core->unloadROM(core);
-    struct VFile* rom = VFileFromFD(fd)
+    struct VFile* rom = VFileFromFD(fd);
     if (rom && !core->isROM(rom)) {
 		rom->close(rom);
 		rom = NULL;
