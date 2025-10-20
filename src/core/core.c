@@ -23,10 +23,8 @@
 #include <mgba/gb/core.h>
 #include <mgba/gb/interface.h>
 #endif
-#ifdef M_CORE_GBA
 #include <mgba/gba/core.h>
 #include <mgba/gba/interface.h>
-#endif
 #ifndef MINIMAL_CORE
 #include <mgba/feature/video-logger.h>
 #endif
@@ -36,9 +34,7 @@ static const struct mCoreFilter {
 	struct mCore* (*open)(void);
 	enum mPlatform platform;
 } _filters[] = {
-#ifdef M_CORE_GBA
 	{ GBAIsROM, GBACoreCreate, mPLATFORM_GBA },
-#endif
 #ifdef M_CORE_GB
 	{ GBIsROM, GBCoreCreate, mPLATFORM_GB },
 #endif
