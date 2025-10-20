@@ -1612,7 +1612,13 @@ static void _GBACoreEndVideoLog(struct mCore* core) {
 #endif
 
 struct mCore* GBACoreCreate(void) {
+	fprintf(stderr, "[GBACoreCreate] Starting core creation...\n");
 	struct GBACore* gbacore = malloc(sizeof(*gbacore));
+	if (!gbacore) {
+        fprintf(stderr, "[GBACoreCreate] malloc failed (out of memory)\n");
+        return NULL;
+	}
+	fprintf(stderr, "[GBACoreCreate] Allocated %zu bytes for GBACore\n", sizeof(*gbacore));
 	struct mCore* core = &gbacore->d;
 	memset(&core->opts, 0, sizeof(core->opts));
 	core->cpu = NULL;
@@ -1707,6 +1713,7 @@ struct mCore* GBACoreCreate(void) {
 	core->startVideoLog = _GBACoreStartVideoLog;
 	core->endVideoLog = _GBACoreEndVideoLog;
 #endif
+	fprintf(stderr, "[GBACoreCreate] Core creation completed successfully\n");
 	return core;
 }
 
