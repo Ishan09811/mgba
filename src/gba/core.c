@@ -36,6 +36,11 @@
 #include <mgba-util/patch.h>
 #include <mgba-util/vfs.h>
 #include <errno.h>
+#include <android/log.h>
+#define LOG_TAG "GBACore"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
 static const struct mCoreChannelInfo _GBAVideoLayers[] = {
 	{ GBA_LAYER_BG0, "bg0", "Background 0", NULL },
@@ -1612,13 +1617,12 @@ static void _GBACoreEndVideoLog(struct mCore* core) {
 #endif
 
 struct mCore* GBACoreCreate(void) {
-	fprintf(stderr, "[GBACoreCreate] Starting core creation...\n");
+	LOGI("Starting GBACoreCreate...");
 	struct GBACore* gbacore = malloc(sizeof(*gbacore));
 	if (!gbacore) {
-        fprintf(stderr, "[GBACoreCreate] malloc failed (out of memory)\n");
+        LOGE("malloc failed!");
         return NULL;
 	}
-	fprintf(stderr, "[GBACoreCreate] Allocated %zu bytes for GBACore\n", sizeof(*gbacore));
 	struct mCore* core = &gbacore->d;
 	memset(&core->opts, 0, sizeof(core->opts));
 	core->cpu = NULL;
@@ -1713,7 +1717,7 @@ struct mCore* GBACoreCreate(void) {
 	core->startVideoLog = _GBACoreStartVideoLog;
 	core->endVideoLog = _GBACoreEndVideoLog;
 #endif
-	fprintf(stderr, "[GBACoreCreate] Core creation completed successfully\n");
+	LOGI("GBACoreCreate succeeded");
 	return core;
 }
 
