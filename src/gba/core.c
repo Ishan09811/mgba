@@ -254,11 +254,21 @@ static_assert(sizeof(((struct GBACore*) 0)->memoryBlocks) >=
 static bool _GBACoreInit(struct mCore* core) {
 	struct GBACore* gbacore = (struct GBACore*) core;
 
+	LOGI("Initializing...");
 	struct ARMCore* cpu = anonymousMemoryMap(sizeof(struct ARMCore));
+	if (!cpu) {
+        LOGE("Failed to allocate ARMCore");
+	}
+	
 	struct GBA* gba = anonymousMemoryMap(sizeof(struct GBA));
+	if (!gba) {
+        LOGE("Failed to allocate GBA");
+	}
+	
 	if (!cpu || !gba) {
 		free(cpu);
 		free(gba);
+		LOGE("Allocation failed, aborting init");
 		return false;
 	}
 	core->cpu = cpu;
@@ -275,14 +285,19 @@ static bool _GBACoreInit(struct mCore* core) {
 	gbacore->logContext = NULL;
 #endif
 
+	LOGI("Calling GBACreate...");
 	GBACreate(gba);
 	// TODO: Restore cheats
+	LOGI("Setting up ARM components...");
 	memset(gbacore->components, 0, sizeof(gbacore->components));
 	ARMSetComponents(cpu, &gba->d, CPU_COMPONENT_MAX, gbacore->components);
 	ARMInit(cpu);
+	
+	LOGI("Initializing RTC...");
 	mRTCGenericSourceInit(&core->rtc, core);
 	gba->rtcSource = &core->rtc.d;
 
+    LOGI("Setting up video renderers...");
 	GBAVideoDummyRendererCreate(&gbacore->dummyRenderer);
 	GBAVideoAssociateRenderer(&gba->video, &gbacore->dummyRenderer);
 
@@ -303,9 +318,11 @@ static bool _GBACoreInit(struct mCore* core) {
 #endif
 
 #if defined(ENABLE_VFS) && defined(ENABLE_DIRECTORIES)
+	LOGI("Initializing directories...");
 	mDirectorySetInit(&core->dirs);
 #endif
 
+	LOGI("initialization complete!");
 	return true;
 }
 
