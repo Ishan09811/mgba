@@ -28,6 +28,7 @@
 #ifndef MINIMAL_CORE
 #include <mgba/feature/video-logger.h>
 #endif
+#include <android/log.h>
 
 static const struct mCoreFilter {
 	bool (*filter)(struct VFile*);
@@ -79,10 +80,12 @@ struct mCore* mCoreCreate(enum mPlatform platform) {
 		if (filter->platform == platform) {
 			break;
 		}
-	}
+	
 	if (filter->open) {
+		__android_log_print(ANDROID_LOG_INFO, "CORE", "Successfully created core")
 		return filter->open();
 	}
+	__android_log_print(ANDROID_LOG_ERROR, "CORE", "Failed to create core")
 	return NULL;
 }
 
