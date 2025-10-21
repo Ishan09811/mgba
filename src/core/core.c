@@ -80,6 +80,7 @@ struct mCore* mCoreCreate(enum mPlatform platform) {
 		if (filter->platform == platform) {
 			break;
 		}
+	}
 	
 	if (filter->open) {
 		__android_log_print(ANDROID_LOG_INFO, "CORE", "Successfully created core");
