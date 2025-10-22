@@ -71,6 +71,7 @@ struct mCore {
 
 	void (*setVideoBuffer)(struct mCore*, mColor* buffer, size_t stride);
 	void (*setVideoGLTex)(struct mCore*, unsigned texid);
+    void (*setVideoGLFBO)(struct mCore*, int fbo);
 
 	void (*getPixels)(struct mCore*, const void** buffer, size_t* stride);
 	void (*putPixels)(struct mCore*, const void* buffer, size_t stride);
