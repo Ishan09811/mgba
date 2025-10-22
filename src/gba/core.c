@@ -1669,7 +1669,7 @@ struct mCore* GBACoreCreate(void) {
 	core->screenRegions = _GBACoreScreenRegions;
 	core->setVideoBuffer = _GBACoreSetVideoBuffer;
 	core->setVideoGLTex = _GBACoreSetVideoGLTex;
-	core->setVideoFBO = _GBACoreSetVideoFBO;
+	core->setVideoGLFBO = _GBACoreSetVideoFBO;
 	core->getPixels = _GBACoreGetPixels;
 	core->putPixels = _GBACorePutPixels;
 	core->audioSampleRate = _GBACoreAudioSampleRate;
