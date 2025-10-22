@@ -575,6 +575,16 @@ static void _GBACoreSetVideoGLTex(struct mCore* core, unsigned texid) {
 #endif
 }
 
+static void _GBACoreSetVideoFBO(struct mCore* core, int fbo) {
+#ifdef BUILD_GLES3
+    struct GBACore* gbacore = (struct GBACore*) core;
+	gbacore->glRenderer.fbo[GBA_GL_FBO_OUTPUT] = (GLuint)fbo;
+#else
+    UNUSED(core);
+    UNUSED(fbo);
+#endif
+}
+
 static void _GBACoreGetPixels(struct mCore* core, const void** buffer, size_t* stride) {
 	struct GBA* gba = core->board;
 	gba->video.renderer->getPixels(gba->video.renderer, stride, buffer);
@@ -1659,6 +1669,7 @@ struct mCore* GBACoreCreate(void) {
 	core->screenRegions = _GBACoreScreenRegions;
 	core->setVideoBuffer = _GBACoreSetVideoBuffer;
 	core->setVideoGLTex = _GBACoreSetVideoGLTex;
+	core->setVideoFBO = _GBACoreSetVideoFBO;
 	core->getPixels = _GBACoreGetPixels;
 	core->putPixels = _GBACorePutPixels;
 	core->audioSampleRate = _GBACoreAudioSampleRate;
