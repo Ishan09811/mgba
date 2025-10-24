@@ -15,6 +15,9 @@
 #include <mgba-util/vfs.h>
 
 #include <signal.h>
+#ifdef ANDROID
+#include <android/log.h>
+#endif
 
 #ifndef DISABLE_THREADING
 
@@ -707,9 +710,23 @@ struct mCoreThread* mCoreThreadGet(void) {
 
 static void _mCoreLog(struct mLogger* logger, int category, enum mLogLevel level, const char* format, va_list args) {
 	struct mThreadLogger* threadLogger = (struct mThreadLogger*) logger;
+	
 	if (level == mLOG_FATAL) {
 		mCoreThreadMarkCrashed(threadLogger->p);
 	}
+#ifdef ANDROID
+    char buffer[512];
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    int androidLevel;
+    switch (level) {
+        case mLOG_FATAL:   androidLevel = ANDROID_LOG_FATAL; break;
+        case mLOG_ERROR:   androidLevel = ANDROID_LOG_ERROR; break;
+        case mLOG_WARN:    androidLevel = ANDROID_LOG_WARN; break;
+        case mLOG_INFO:    androidLevel = ANDROID_LOG_INFO; break;
+        default:           androidLevel = ANDROID_LOG_DEBUG; break;
+    }
+    __android_log_print(androidLevel, mLogCategoryName(category), "%s", buffer);
+#else
 	if (!threadLogger->p->logger.logger) {
 		printf("%s: ", mLogCategoryName(category));
 		vprintf(format, args);
@@ -718,6 +735,7 @@ static void _mCoreLog(struct mLogger* logger, int category, enum mLogLevel level
 		logger = threadLogger->p->logger.logger;
 		logger->log(logger, category, level, format, args);
 	}
+#endif
 }
 #else
 struct mCoreThread* mCoreThreadGet(void) {
