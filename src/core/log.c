@@ -133,6 +133,7 @@ void mLog(int category, enum mLogLevel level, const char* format, ...) {
     }
 
     __android_log_print(androidLevel, mLogCategoryName(category), "%s", buffer);
+	va_end(args);
 #else
 	struct mLogger* context = mLogGetContext();
 	va_list args;
