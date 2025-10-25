@@ -9,9 +9,9 @@
 #include <mgba-util/threading.h>
 #include <mgba-util/vfs.h>
 
-#ifdef ANDROID
+//#ifdef ANDROID
 #include <android/log.h>
-#endif
+//#endif
 
 #define MAX_CATEGORY 64
 #define MAX_LOG_BUF 1024
@@ -116,7 +116,7 @@ int mLogCategoryById(const char* id) {
 }
 
 void mLog(int category, enum mLogLevel level, const char* format, ...) {	
-#ifdef ANDROID
+//#ifdef ANDROID
     char buffer[512];
 	va_list args;
 	va_start(args, format);
@@ -134,7 +134,7 @@ void mLog(int category, enum mLogLevel level, const char* format, ...) {
 
     __android_log_print(androidLevel, mLogCategoryName(category), "%s", buffer);
 	va_end(args);
-#else
+/*#else
 	struct mLogger* context = mLogGetContext();
 	va_list args;
 	va_start(args, format);
@@ -148,7 +148,7 @@ void mLog(int category, enum mLogLevel level, const char* format, ...) {
 		printf("\n");
 	}
 	va_end(args);
-#endif
+#endif*/
 }
 
 void mLogExplicit(struct mLogger* context, int category, enum mLogLevel level, const char* format, ...) {
