@@ -67,7 +67,7 @@
                         android:layout_marginTop="4dp"
                         android:text="Missing"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="?attr/colorError"
+                        android:textColor="?attr/colorOnSurfaceVariant"
                         app:layout_constraintEnd_toStartOf="@+id/btnImportGb"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@id/titleGb" />
@@ -112,7 +112,7 @@
                         android:layout_marginTop="4dp"
                         android:text="Missing"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="?attr/colorError"
+                        android:textColor="?attr/colorOnSurfaceVariant"
                         app:layout_constraintEnd_toStartOf="@+id/btnImportGbc"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@id/titleGbc" />
@@ -157,7 +157,7 @@
                         android:layout_marginTop="4dp"
                         android:text="Missing"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="?attr/colorError"
+                        android:textColor="?attr/colorOnSurfaceVariant"
                         app:layout_constraintEnd_toStartOf="@+id/btnImportSgb"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@id/titleSgb" />
