@@ -32,11 +32,6 @@ public:
     }
 
     bool quickLoadRom(const uint8_t* data, size_t size) override {
-		if (!data || size == 0) {
-			LOGE("quickLoadRom: Invalid ROM data.");
-			return false;
-		}
-
         if (m_core != nullptr) {
             unloadRom();
         }
@@ -62,8 +57,6 @@ public:
             m_core = nullptr;
             return false;
         }
-
-        mCoreInitConfig(m_core, nullptr);
 
         if (!m_core->loadROM(m_core, vf)) {
             LOGE("mCore loadROM failed");
