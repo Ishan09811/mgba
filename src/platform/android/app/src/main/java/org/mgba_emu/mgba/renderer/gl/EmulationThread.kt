@@ -11,7 +11,7 @@ class EmulationThread(
     private val frameBuffer: FrameBuffer,
     private val onFrameReady: () -> Unit,
     private val onFpsUpdated: (Double) -> Unit
-) : Thread("gbdroid-emulation") {
+) : Thread("mgba-emulation") {
 
     private val running = AtomicBoolean(false)
 
