@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(gbdroid)
+project(mgba-android)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,8 +14,6 @@ if(NOT EXISTS ${MGBA_DIR}/CMakeLists.txt)
     message(FATAL_ERROR "mGBA not found at ${MGBA_DIR}.")
 endif()
 
-set(USE_USERFAULTFD OFF CACHE INTERNAL "" FORCE)
-set(USE_ANON_PAGES OFF CACHE INTERNAL "" FORCE)
 set(BUILD_QT OFF CACHE BOOL "" FORCE)
 set(BUILD_SDL OFF CACHE BOOL "" FORCE)
 set(BUILD_SDL2 OFF CACHE BOOL "" FORCE)
@@ -45,14 +43,14 @@ endif()
 
 set(MGBA_CORE_TARGET mgba)
 
-add_library(gbdroid SHARED
+add_library(mgba-android SHARED
     core.cpp
     core_interface.cpp
     audio/oboe_audio_player.cpp
 )
 
 # very important to avoid definitions mismatch
-target_compile_definitions(gbdroid PRIVATE
+target_compile_definitions(mgba-android PRIVATE
         M_CORE_GBA
         M_CORE_GB
         ENABLE_VFS
@@ -60,7 +58,7 @@ target_compile_definitions(gbdroid PRIVATE
         ENABLE_DEBUGGERS
 )
 
-target_include_directories(gbdroid PRIVATE
+target_include_directories(mgba-android PRIVATE
         "${MGBA_DIR}"
         "${MGBA_DIR}/src"
         "${MGBA_DIR}/include"
@@ -74,7 +72,7 @@ find_library(android-lib android)
 find_library(gles-lib GLESv2)
 find_library(z-lib z)
 
-target_link_libraries(gbdroid
+target_link_libraries(mgba-android
     ${MGBA_CORE_TARGET}
     ${log-lib}
     ${android-lib}

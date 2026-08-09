@@ -23,7 +23,7 @@ enum class Platform(val value: Int) {
 
 object Core {
     init {
-        System.loadLibrary("gbdroid")
+        System.loadLibrary("mgba-android")
     }
 
     private var initialized = false
