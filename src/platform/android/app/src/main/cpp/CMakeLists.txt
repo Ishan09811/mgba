@@ -51,11 +51,8 @@ add_library(mgba-android SHARED
 
 # very important to avoid definitions mismatch
 target_compile_definitions(mgba-android PRIVATE
-        M_CORE_GBA
-        M_CORE_GB
         ENABLE_VFS
         ENABLE_DIRECTORIES
-        ENABLE_DEBUGGERS
 )
 
 target_include_directories(mgba-android PRIVATE
