@@ -39,7 +39,7 @@ class GameAdapter(
 
         holder.binding.title.text = game.title ?: game.fileName
         holder.binding.title.isSelected = true
-        holder.binding.version.text = game.version ?: "Version: --"
+        holder.binding.platform.text = game.platform?.name ?: ""
         holder.binding.icon.load(game.iconUrl ?: "") {
             crossfade(true)
             fallback(android.R.drawable.ic_media_play)

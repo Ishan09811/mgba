@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -75,8 +76,8 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.coil)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.jsoup)
     implementation(libs.oboe)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.zstd.jni) {
         artifact {
             extension = "aar"

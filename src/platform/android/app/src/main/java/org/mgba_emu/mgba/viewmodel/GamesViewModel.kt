@@ -123,10 +123,13 @@ class GamesViewModel : ViewModel() {
                     continue
                 }
 
+                val platform = Core.getPlatform()
+
                 element.code = Core.gameCode()
                 element.title = NoIntroParser.findTitle(element.code ?: "") ?: Core.gameTitle()
                 element.version = Core.gameVersion
-                element.iconUrl = getIconUrl(element.title ?: "", Core.getPlatform())
+                element.iconUrl = getIconUrl(element.title ?: "", platform)
+                element.platform = platform
                 GameCacheManager.saveGame(element)
                 listStructureChanged = true
             }
@@ -149,13 +152,15 @@ class GamesViewModel : ViewModel() {
 
                 val gameCode = Core.gameCode()
                 val gameTitle = NoIntroParser.findTitle(gameCode) ?: Core.gameTitle()
-                val iconUrl = getIconUrl(gameTitle, Core.getPlatform())
+                val platform = Core.getPlatform()
+                val iconUrl = getIconUrl(gameTitle, platform)
 
                 val updatedGame = element.copy(
                     title = gameTitle,
                     code = gameCode,
                     version = Core.gameVersion,
-                    iconUrl = iconUrl
+                    iconUrl = iconUrl,
+                    platform = platform
                 )
 
                 GameCacheManager.saveGame(updatedGame)

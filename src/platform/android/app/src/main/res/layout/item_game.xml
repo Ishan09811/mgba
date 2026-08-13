@@ -43,7 +43,7 @@
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:textAppearance="?attr/textAppearanceTitleMedium"
-            app:layout_constraintBottom_toTopOf="@+id/version"
+            app:layout_constraintBottom_toTopOf="@+id/platform"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@+id/icon"
             app:layout_constraintTop_toTopOf="parent"
@@ -51,7 +51,7 @@
             tools:text="Pokemon_FireRed.gba" />
 
         <TextView
-            android:id="@+id/version"
+            android:id="@+id/platform"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"

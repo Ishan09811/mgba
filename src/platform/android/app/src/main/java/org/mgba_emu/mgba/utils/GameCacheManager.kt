@@ -3,67 +3,55 @@ package org.mgba_emu.mgba.utils
 
 import android.content.Context
 import android.net.Uri
-import org.mgba_emu.mgba.model.GameModel
-import org.json.JSONObject
 import androidx.core.content.edit
+import androidx.core.net.toUri
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
 import org.mgba_emu.mgba.mGBAApplication
+import org.mgba_emu.mgba.model.GameModel
+
+object UriSerializer : KSerializer<Uri> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Uri", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: Uri) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): Uri {
+        return decoder.decodeString().toUri()
+    }
+}
 
 object GameCacheManager {
     private val prefs = mGBAApplication.context.getSharedPreferences("games_cache", Context.MODE_PRIVATE)
+
+    private val jsonConfig = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
 
     fun getGame(uri: Uri, fileName: String): GameModel? {
         val jsonString = prefs.getString(uri.toString(), null) ?: return null
 
         return try {
-            val json = JSONObject(jsonString)
-            GameModel(
-                uri = uri,
-                fileName = fileName,
-                title = json.optString("title").takeIf { it.isNotEmpty() },
-                version = json.optString("version").takeIf { it.isNotEmpty() },
-                iconUrl = json.optString("iconUrl").takeIf { it.isNotEmpty() },
-                lastPlayed = json.optLong("lastPlayed", 0L)
-            )
+            val cachedGame = jsonConfig.decodeFromString<GameModel>(jsonString)
+            cachedGame.copy(fileName = fileName)
         } catch (_: Exception) {
             null
         }
     }
 
     fun saveGame(game: GameModel) {
-        val json = JSONObject().apply {
-            put("title", game.title ?: "")
-            put("version", game.version ?: "")
-            put("iconUrl", game.iconUrl ?: "")
-            put("lastPlayed", game.lastPlayed)
-        }
-
-        prefs.edit { putString(game.uri.toString(), json.toString()) }
-    }
-
-    fun getAllCachedGames(): List<GameModel> {
-        val allGames = mutableListOf<GameModel>()
-        val allEntries = prefs.all
-
-        for ((uriString, jsonString) in allEntries) {
-            if (jsonString is String) {
-                try {
-                    val json = JSONObject(jsonString)
-                    val uri = Uri.parse(uriString)
-                    val FallbackName = uri.lastPathSegment ?: "Unknown Game"
-
-                    allGames.add(
-                        GameModel(
-                            uri = uri,
-                            fileName = FallbackName,
-                            title = json.optString("title").takeIf { it.isNotEmpty() },
-                            version = json.optString("version").takeIf { it.isNotEmpty() },
-                            iconUrl = json.optString("iconUrl").takeIf { it.isNotEmpty() },
-                            lastPlayed = json.optLong("lastPlayed", 0L)
-                        )
-                    )
-                } catch (_: Exception) {}
+        try {
+            val jsonString = jsonConfig.encodeToString(game)
+            prefs.edit {
+                putString(game.uri.toString(), jsonString)
             }
-        }
-        return allGames
+        } catch (_: Exception) {}
     }
 }
