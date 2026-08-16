@@ -2,6 +2,7 @@
 #include "audio/oboe_audio_player.h"
 
 #include <android/log.h>
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -121,12 +122,19 @@ public:
             return false;
         }
 
+        m_audioFramesPerEmulatedFrame =
+                static_cast<double>(m_sampleRate) *
+                static_cast<double>(m_core->frameCycles(m_core)) /
+                static_cast<double>(m_core->frequency(m_core));
+
+        m_audioFramesAccumulator = 0.0;
+
         m_core->setAudioBufferSize(m_core, kAudioPullFrames);
 
         if (m_audioPlayer.hasStream()) {
             m_audioPlayer.stop();
         }
-        if (!m_audioPlayer.start(m_sampleRate, static_cast<size_t>(m_sampleRate) / 10)) {
+        if (!m_audioPlayer.start(m_sampleRate, kAudioRingBufferFrames)) {
             LOGE("Failed to start Oboe audio playback, continuing without audio");
         }
 
@@ -136,26 +144,55 @@ public:
     }
 
     void unloadRom() override {
+        m_audioPlayer.stop();
         if (m_core) {
             m_core->unloadROM(m_core);
             m_core->deinit(m_core);
             m_core = nullptr;
         }
+        m_audioFramesPerEmulatedFrame = 0.0;
+        m_audioFramesAccumulator = 0.0;
         m_romBuffer.clear();
         m_videoBuffer.clear();
     }
 
     void reset() override {
-        if (m_core) m_core->reset(m_core);
+        if (m_core) {
+            m_core->reset(m_core);
+            m_audioFramesAccumulator = 0.0;
+        }
     }
 
     void runFrame() override {
-        if (m_core) m_core->runFrame(m_core);
+        if (!m_core) return;
+
+        m_core->runFrame(m_core);
+
+        m_audioFramesAccumulator += m_audioFramesPerEmulatedFrame;
+        const auto requestedFrames = static_cast<size_t>(m_audioFramesAccumulator);
+
+        if (requestedFrames == 0) return;
+
+        const size_t freeFrames = m_audioPlayer.freeFrames();
+        const size_t toRead = std::min({
+                requestedFrames,
+                freeFrames,
+                kAudioPullFrames
+        });
+
+        if (toRead == 0) return;
 
         int16_t audioBuf[kAudioPullFrames * 2];
-        size_t frames = pullAudioSamples(audioBuf, kAudioPullFrames);
+        const size_t frames = pullAudioSamples(audioBuf, toRead);
         if (frames > 0) {
-            m_audioPlayer.write(audioBuf, frames);
+            const size_t written = m_audioPlayer.write(audioBuf, frames);
+            if (written > 0) {
+                m_audioFramesAccumulator -= static_cast<double>(written);
+            }
+
+            if (written != frames) {
+                LOGE("audio write mismatch: pulled=%zu written=%zu", frames, written);
+            }
         }
     }
 
@@ -250,7 +287,7 @@ public:
         }
 
         if (basePlatform == mPLATFORM_GB) {
-            struct GB* gbCore = reinterpret_cast<struct GB*>(m_core->board);
+            auto* gbCore = reinterpret_cast<struct GB*>(m_core->board);
             if (!gbCore) return PLATFORM_GB;
 
             switch (gbCore->model) {
@@ -312,6 +349,7 @@ private:
 	}
 
     static constexpr size_t kAudioPullFrames = 1024;
+    static constexpr size_t kAudioRingBufferFrames = 4096;
 
     enum Platform {
         PLATFORM_UNKNOWN = -1,
@@ -330,6 +368,8 @@ private:
     int m_width = 0;
     int m_height = 0;
     int m_sampleRate = 0;
+    double m_audioFramesPerEmulatedFrame = 0.0;
+    double m_audioFramesAccumulator = 0.0;
 };
 
 CoreInterface* createCore() {
