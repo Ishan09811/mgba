@@ -19,6 +19,7 @@ Features:
  - Initial support for bootleg GBA multicarts
  - Debugger: Add range watchpoints
  - Debugger: Add enabling/disabling for breakpoints and watchpoints
+ - Debugger: Show SPSR register and PSR mode fields
  - "Headless" frontend for running tests, automation, etc.
 Emulation fixes:
  - ARM: Add framework for coprocessor support
@@ -132,6 +133,7 @@ Misc:
  - Res: Port MMPX shader
  - Scripting: Add `callbacks:oneshot` for single-call callbacks
  - SDL: Differentiate controllers based on serial number (fixes mgba.io/i/880)
+ - VFS: Fix loading 7-Zip files with Unicode filenames on Windows (fixes mbga.io/i/3823)
 
 0.10.5: (2025-03-08)
 Other fixes:
