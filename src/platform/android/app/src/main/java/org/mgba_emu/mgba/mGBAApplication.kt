@@ -3,6 +3,8 @@ package org.mgba_emu.mgba
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
+import org.mgba_emu.mgba.services.LoggerService
 import org.mgba_emu.mgba.utils.GlobalConfig
 
 class mGBAApplication : Application() {
@@ -21,5 +23,6 @@ class mGBAApplication : Application() {
         super.onCreate()
         instance = this
         GlobalConfig.initialize(context)
+        startService(Intent(this, LoggerService::class.java))
     }
 }

@@ -31,13 +31,10 @@ public:
     virtual void runFrame() = 0;
 
     virtual const uint32_t* getVideoBuffer() = 0;
-    virtual int getWidth() const = 0;
-    virtual int getHeight() const = 0;
+    [[nodiscard]] virtual int getWidth() const = 0;
+    [[nodiscard]] virtual int getHeight() const = 0;
 
     virtual void setKeys(uint16_t keyMask) = 0;
-
-    virtual size_t fillAudioBuffer(int16_t* outBuffer, size_t maxFrames) = 0;
-    virtual int getAudioSampleRate() const = 0;
 
     virtual bool saveState(uint8_t* outBuffer, size_t bufferSize, size_t* outWritten) = 0;
     virtual bool loadState(const uint8_t* data, size_t size) = 0;

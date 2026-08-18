@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstring>
 #include <vector>
+#include <atomic>
+#include <cmath>
 
 extern "C" {
 #include "mgba/gb/interface.h"
@@ -12,6 +14,8 @@ extern "C" {
 #include <mgba/core/version.h>
 #include <mgba/core/serialize.h>
 #include <mgba/core/interface.h>
+#include <mgba-util/audio-buffer.h>
+#include <mgba-util/audio-resampler.h>
 #include <mgba/internal/gb/gb.h>
 #include <mgba-util/vfs.h>
 }
@@ -22,6 +26,19 @@ extern "C" {
 
 class CoreImpl : public CoreInterface {
 public:
+    CoreImpl() {
+        s_audioRateOwner.store(this, std::memory_order_release);
+    }
+
+    ~CoreImpl() override {
+        CoreImpl* expected = this;
+        s_audioRateOwner.compare_exchange_strong(
+		    expected, nullptr,
+		    std::memory_order_acq_rel,
+		    std::memory_order_acquire
+		);
+    }
+
     bool init() override {
         LOGI("Core::init");
         return true;
@@ -112,8 +129,11 @@ public:
 
         m_core->setVideoBuffer(m_core, m_videoBuffer.data(), static_cast<size_t>(m_width));
 
-		m_sampleRate = 48000; // best for android
-		mCoreConfigSetIntValue(&m_core->config, "sampleRate", m_sampleRate);
+        m_sampleRate = 0;
+
+        m_avStream = {};
+        m_avStream.audioRateChanged = &CoreImpl::audioRateChangedThunk;
+        m_core->setAVStream(m_core, &m_avStream);
 
         if (!m_core->loadROM(m_core, vf)) {
             LOGE("mCore loadROM failed");
@@ -122,76 +142,116 @@ public:
             return false;
         }
 
-        m_audioFramesPerEmulatedFrame =
-                static_cast<double>(m_sampleRate) *
-                static_cast<double>(m_core->frameCycles(m_core)) /
-                static_cast<double>(m_core->frequency(m_core));
+        m_coreSampleRate = static_cast<int>(m_core->audioSampleRate(m_core));
+        if (m_coreSampleRate <= 0) {
+            LOGE("Invalid native audio sample rate: %d", m_coreSampleRate);
+            m_core->deinit(m_core);
+            m_core = nullptr;
+            return false;
+        }
 
-        m_audioFramesAccumulator = 0.0;
-
-        m_core->setAudioBufferSize(m_core, kAudioPullFrames);
+        configureCoreAudioBuffer(m_coreSampleRate);
 
         if (m_audioPlayer.hasStream()) {
             m_audioPlayer.stop();
         }
-        if (!m_audioPlayer.start(m_sampleRate, kAudioRingBufferFrames)) {
+
+        constexpr int kPreferredOutputRate = 48000;
+        if (!m_audioPlayer.start(kPreferredOutputRate, kAudioRingBufferFrames)) {
             LOGE("Failed to start Oboe audio playback, continuing without audio");
         }
 
-        LOGI("ROM loaded: %dx%d, sampleRate=%d", m_width, m_height, m_sampleRate);
+        m_sampleRate = m_audioPlayer.getSampleRate();
+        if (m_sampleRate <= 0) {
+            LOGE("Oboe returned invalid sample rate: %d", m_sampleRate);
+            m_audioPlayer.stop();
+            m_core->deinit(m_core);
+            m_core = nullptr;
+            return false;
+        }
+
+        mAudioBufferInit(&m_resampledAudio, kResampledAudioBufferFrames, 2);
+        mAudioResamplerInit(&m_audioResampler, mINTERPOLATOR_SINC);
+        mAudioResamplerSetSource(
+		    &m_audioResampler,
+		    m_core->getAudioBuffer(m_core),
+		    static_cast<double>(m_coreSampleRate),
+		    true
+		);
+        mAudioResamplerSetDestination(
+		    &m_audioResampler,
+		    &m_resampledAudio,
+		    static_cast<double>(m_sampleRate)
+		);
+
+        m_resamplerInitialized = true;
+        m_pendingAudioRate.store(0, std::memory_order_release);
+
+        LOGI("ROM loaded: %dx%d coreAudioRate=%d outputRate=%d",
+             m_width, m_height, m_coreSampleRate, m_sampleRate);
+
 		m_core->reset(m_core);
+        resetAudioPipeline();
         return true;
     }
 
     void unloadRom() override {
         m_audioPlayer.stop();
+
+        if (m_resamplerInitialized) {
+            mAudioResamplerDeinit(&m_audioResampler);
+            mAudioBufferDeinit(&m_resampledAudio);
+            m_resamplerInitialized = false;
+        }
+
         if (m_core) {
             m_core->unloadROM(m_core);
             m_core->deinit(m_core);
             m_core = nullptr;
         }
-        m_audioFramesPerEmulatedFrame = 0.0;
-        m_audioFramesAccumulator = 0.0;
+
+        m_pendingAudioRate.store(0, std::memory_order_release);
+        m_coreSampleRate = 0;
+        m_sampleRate = 0;
         m_romBuffer.clear();
         m_videoBuffer.clear();
     }
 
     void reset() override {
         if (m_core) {
+            m_pendingAudioRate.store(0, std::memory_order_release);
             m_core->reset(m_core);
-            m_audioFramesAccumulator = 0.0;
+            m_coreSampleRate = static_cast<int>(m_core->audioSampleRate(m_core));
+            configureCoreAudioBuffer(m_coreSampleRate);
+            if (m_resamplerInitialized) {
+                resetAudioPipeline();
+            }
         }
     }
 
     void runFrame() override {
-        if (!m_core) return;
+        if (!m_core || !m_resamplerInitialized) return;
 
         m_core->runFrame(m_core);
 
-        m_audioFramesAccumulator += m_audioFramesPerEmulatedFrame;
-        const auto requestedFrames = static_cast<size_t>(m_audioFramesAccumulator);
+        applyPendingAudioRateChange();
 
-        if (requestedFrames == 0) return;
+        for (size_t i = 0; i < kMaxAudioProcessIterations; ++i) {
+            if (m_audioPlayer.freeFrames() == 0) break;
 
-        const size_t freeFrames = m_audioPlayer.freeFrames();
-        const size_t toRead = std::min({
-                requestedFrames,
-                freeFrames,
-                kAudioPullFrames
-        });
+            const size_t sourceBefore = mAudioBufferAvailable(m_core->getAudioBuffer(m_core));
+            const size_t outputBefore = mAudioBufferAvailable(&m_resampledAudio);
+            const size_t produced = mAudioResamplerProcess(&m_audioResampler);
 
-        if (toRead == 0) return;
+            drainResampledAudio();
 
-        int16_t audioBuf[kAudioPullFrames * 2];
-        const size_t frames = pullAudioSamples(audioBuf, toRead);
-        if (frames > 0) {
-            const size_t written = m_audioPlayer.write(audioBuf, frames);
-            if (written > 0) {
-                m_audioFramesAccumulator -= static_cast<double>(written);
-            }
+            const size_t sourceAfter = mAudioBufferAvailable(m_core->getAudioBuffer(m_core));
+            const size_t outputAfter = mAudioBufferAvailable(&m_resampledAudio);
 
-            if (written != frames) {
-                LOGE("audio write mismatch: pulled=%zu written=%zu", frames, written);
+            if (produced == 0 &&
+                sourceBefore == sourceAfter &&
+                outputBefore == outputAfter) {
+                break;
             }
         }
     }
@@ -205,18 +265,6 @@ public:
 
     void setKeys(uint16_t keyMask) override {
         if (m_core) m_core->setKeys(m_core, static_cast<uint32_t>(keyMask));
-    }
-
-    size_t fillAudioBuffer(int16_t* outBuffer, size_t maxFrames) override {
-        size_t frames = pullAudioSamples(outBuffer, maxFrames);
-        if (frames < maxFrames) {
-            std::memset(outBuffer + frames * 2, 0, (maxFrames - frames) * 2 * sizeof(int16_t));
-        }
-        return maxFrames;
-    }
-
-    int getAudioSampleRate() const override {
-        return m_sampleRate > 0 ? m_sampleRate : 48000;
     }
 
     bool saveState(uint8_t* outBuffer, size_t bufferSize, size_t* outWritten) override {
@@ -338,17 +386,91 @@ public:
     }
 
 private:
-	size_t pullAudioSamples(int16_t* outBuffer, size_t maxFrames) {
-		if (!m_core) return 0;
+    static void audioRateChangedThunk(struct mAVStream*, unsigned rate) {
+        CoreImpl* self = s_audioRateOwner.load(std::memory_order_acquire);
+        if (self) {
+            self->m_pendingAudioRate.store(static_cast<int>(rate), std::memory_order_release);
+        }
+    }
 
-		struct mAudioBuffer* audioBuffer = m_core->getAudioBuffer(m_core);
-		if (!audioBuffer) return 0;
+    void configureCoreAudioBuffer(int sourceRate) {
+        if (!m_core || sourceRate <= 0) return;
 
-		size_t framesRead = mAudioBufferRead(audioBuffer, outBuffer, maxFrames);
-		return framesRead;
-	}
+        const double samplesPerFrame =
+                static_cast<double>(sourceRate) *
+                static_cast<double>(m_core->frameCycles(m_core)) /
+                static_cast<double>(m_core->frequency(m_core));
 
-    static constexpr size_t kAudioPullFrames = 1024;
+        auto bufferFrames = static_cast<size_t>(std::ceil(samplesPerFrame * 2.0));
+        bufferFrames = std::max<size_t>(bufferFrames, 2);
+        bufferFrames = std::min<size_t>(bufferFrames, kMaxCoreAudioBufferFrames);
+        m_core->setAudioBufferSize(m_core, bufferFrames);
+
+        LOGI("Core audio buffer: sourceRate=%d samplesPerFrame=%.6f frames=%zu",
+             sourceRate, samplesPerFrame, bufferFrames);
+    }
+
+    void applyPendingAudioRateChange() {
+        if (!m_resamplerInitialized || !m_core) return;
+
+        const int newRate = m_pendingAudioRate.exchange(0, std::memory_order_acq_rel);
+        if (newRate <= 0 || newRate == m_coreSampleRate) return;
+
+        const int oldRate = m_coreSampleRate;
+        m_coreSampleRate = newRate;
+        configureCoreAudioBuffer(newRate);
+        resetAudioPipeline();
+
+        LOGI("native audio rate changed: %d -> %d, outputRate=%d", oldRate, newRate, m_sampleRate);
+    }
+
+    void resetAudioPipeline() {
+        if (!m_core || !m_resamplerInitialized) return;
+
+        mAudioBufferClear(&m_resampledAudio);
+        mAudioResamplerDeinit(&m_audioResampler);
+        mAudioResamplerInit(&m_audioResampler, mINTERPOLATOR_SINC);
+        mAudioResamplerSetSource(
+		    &m_audioResampler,
+		    m_core->getAudioBuffer(m_core),
+		    static_cast<double>(m_coreSampleRate),
+		    true
+		);
+
+        mAudioResamplerSetDestination(
+		    &m_audioResampler,
+		    &m_resampledAudio,
+		    static_cast<double>(m_sampleRate)
+		);
+    }
+
+    void drainResampledAudio() {
+        if (!m_resamplerInitialized) return;
+
+        const size_t available = mAudioBufferAvailable(&m_resampledAudio);
+        const size_t freeFrames = m_audioPlayer.freeFrames();
+        const size_t frames = std::min({
+		    available,
+		    freeFrames,
+		    kAudioDrainFrames
+        });
+
+        if (frames == 0) return;
+
+        int16_t audioBuf[kAudioDrainFrames * 2];
+        const size_t read = mAudioBufferRead(&m_resampledAudio, audioBuf, frames);
+        if (read == 0) return;
+
+        const size_t written = m_audioPlayer.write(audioBuf, read);
+        if (written != read) {
+            LOGE("audio output mismatch: resampled=%zu written=%zu", read, written);
+        }
+    }
+
+    static constexpr size_t kMaxCoreAudioBufferFrames = 0x4000;
+    static constexpr size_t kResampledAudioBufferFrames = 1024;
+    static constexpr size_t kAudioDrainFrames = 1024;
+    static constexpr size_t kMaxAudioProcessIterations = 2;
     static constexpr size_t kAudioRingBufferFrames = 4096;
 
     enum Platform {
@@ -367,10 +489,18 @@ private:
     std::vector<uint32_t> m_expandedBuffer;
     int m_width = 0;
     int m_height = 0;
+    int m_coreSampleRate = 0;
     int m_sampleRate = 0;
-    double m_audioFramesPerEmulatedFrame = 0.0;
-    double m_audioFramesAccumulator = 0.0;
+    mAudioResampler m_audioResampler{};
+    mAudioBuffer m_resampledAudio{};
+    mAVStream m_avStream{};
+    std::atomic<int> m_pendingAudioRate{0};
+    bool m_resamplerInitialized = false;
+
+    static std::atomic<CoreImpl*> s_audioRateOwner;
 };
+
+std::atomic<CoreImpl*> CoreImpl::s_audioRateOwner{nullptr};
 
 CoreInterface* createCore() {
     return new CoreImpl();

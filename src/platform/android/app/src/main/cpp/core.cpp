@@ -13,20 +13,6 @@
 namespace {
     CoreInterface* g_core = nullptr;
     std::mutex g_coreMutex;
-
-    void signalHandler(int sig) {
-	    LOGE("FATAL: Caught native signal %d (Segmentation Fault / Null Pointer)", sig);
-	    std::_Exit(sig);
-    }
-
-    void registerSignalHandlers() {
-	    struct sigaction sa;
-	    std::memset(&sa, 0, sizeof(sa));
-	    sa.sa_handler = signalHandler;
-	    sigemptyset(&sa.sa_mask);
-	    sigaction(SIGSEGV, &sa, nullptr);
-	    sigaction(SIGABRT, &sa, nullptr);
-    }
 }
 
 extern "C" {

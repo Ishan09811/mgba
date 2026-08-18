@@ -33,5 +33,7 @@
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask" />
+
+        <service android:name=".services.LoggerService" android:process=":logger_service"/>
     </application>
 </manifest>

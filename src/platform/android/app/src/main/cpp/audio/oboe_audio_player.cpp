@@ -1,6 +1,7 @@
 #include "oboe_audio_player.h"
 #include <android/log.h>
 #include <algorithm>
+#include <chrono>
 
 #define LOG_TAG "oboe_audio_player"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -14,6 +15,9 @@ bool OboeAudioPlayer::start(int32_t sampleRateHz, size_t requestedRingBufferFram
     }
 
     sampleRate = sampleRateHz;
+    framesPerBurst = 0;
+    totalFramesWritten.store(0, std::memory_order_relaxed);
+    totalFramesConsumed.store(0, std::memory_order_relaxed);
     ringBufferFrames = requestedRingBufferFrames;
     ringBuffer = std::make_unique<SpscRingBuffer>(ringBufferFrames);
     playbackStarted.store(false, std::memory_order_release);
@@ -37,14 +41,18 @@ bool OboeAudioPlayer::start(int32_t sampleRateHz, size_t requestedRingBufferFram
         return false;
     }
 
+    sampleRate = stream->getSampleRate();
+    framesPerBurst = stream->getFramesPerBurst();
+
     LOGI("Oboe stream opened: sampleRate=%d, backend=%s, performanceMode=%s, sharingMode=%s, framesPerBurst=%d",
-         stream->getSampleRate(),
+         sampleRate,
          oboe::convertToText(stream->getAudioApi()),
          oboe::convertToText(stream->getPerformanceMode()),
          oboe::convertToText(stream->getSharingMode()),
-         stream->getFramesPerBurst());
+         framesPerBurst);
 
-    LOGI("Oboe stream opened; waiting for prebuffer=%zu frames (ring capacity=%zu)", kPrebufferFrames, ringBuffer->capacityFrames());
+    LOGI("Oboe stream opened; waiting for prebuffer=%zu frames (ring capacity=%zu)",
+         kPrebufferFrames, ringBuffer->capacityFrames());
 
     return true;
 }
@@ -60,12 +68,14 @@ void OboeAudioPlayer::stop() {
     stream->close();
     stream = nullptr;
     ringBuffer = nullptr;
+    framesPerBurst = 0;
 }
 
 size_t OboeAudioPlayer::write(const int16_t* samples, size_t frameCount) {
     if (!ringBuffer || !samples || frameCount == 0) return 0;
 
     const size_t written = ringBuffer->write(samples, frameCount);
+    totalFramesWritten.fetch_add(written, std::memory_order_relaxed);
 
     if (written < frameCount) {
         LOGD("audio ring short write: read=%zu written=%zu queued=%zu/%zu",
@@ -81,26 +91,26 @@ size_t OboeAudioPlayer::write(const int16_t* samples, size_t frameCount) {
         ringBuffer->available() >= kPrebufferFrames) {
         bool expected = false;
         if (playbackStarted.compare_exchange_strong(
-                expected,
-		        true,
+                expected, true,
                 std::memory_order_acq_rel,
                 std::memory_order_acquire)
 		) {
             const oboe::Result result = stream->requestStart();
             if (result == oboe::Result::OK) {
                 LOGI("Starting Oboe playback after prebuffer: queued=%zu/%zu",
-                     ringBuffer->available(), ringBuffer->capacityFrames()
-				);
+				     ringBuffer->available(), ringBuffer->capacityFrames());
             } else {
                 playbackStarted.store(false, std::memory_order_release);
-                LOGE("Failed to start Oboe stream after prebuffer: %s",
-                     oboe::convertToText(result)
-				);
+                LOGE("Failed to start Oboe stream after prebuffer: %s", oboe::convertToText(result));
             }
         }
     }
 
     return written;
+}
+
+size_t OboeAudioPlayer::availableFrames() const {
+    return ringBuffer ? ringBuffer->available() : 0;
 }
 
 size_t OboeAudioPlayer::freeFrames() const {
@@ -111,15 +121,16 @@ size_t OboeAudioPlayer::capacityFrames() const {
     return ringBuffer ? ringBuffer->capacityFrames() : 0;
 }
 
-oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
-        oboe::AudioStream*,
-        void* audioData,
-        int32_t numFrames
-) {
+uint64_t OboeAudioPlayer::getTotalFramesWritten() const {
+    return totalFramesWritten.load(std::memory_order_relaxed);
+}
+
+oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(oboe::AudioStream*, void* audioData, int32_t numFrames) {
     auto* out = static_cast<int16_t*>(audioData);
 
     if (ringBuffer) {
         ringBuffer->read(out, static_cast<size_t>(numFrames));
+        totalFramesConsumed.fetch_add(static_cast<uint64_t>(numFrames), std::memory_order_relaxed);
         if (isMuted.load(std::memory_order_relaxed)) {
             std::fill(out, out + numFrames * 2, static_cast<int16_t>(0));
         }
@@ -127,27 +138,39 @@ oboe::DataCallbackResult OboeAudioPlayer::onAudioReady(
         std::fill(out, out + numFrames * 2, static_cast<int16_t>(0));
     }
 
-    static thread_local int callbackCount = 0;
-    if (++callbackCount >= 200) {
-        callbackCount = 0;
-		LOGD(
-		    "audio stats: queued=%zu/%zu "
-		    "overflow=%zu underrun=%zu xrun=%d",
-		    ringBuffer ? ringBuffer->available() : 0,
-		    capacityFrames(),
-		    ringBuffer ? ringBuffer->getOverflowFrames() : 0,
-		    ringBuffer ? ringBuffer->getUnderrunFrames() : 0,
-		    getStreamXRunCount()
+    static thread_local auto lastStatsTime = std::chrono::steady_clock::now();
+    static thread_local uint64_t lastWrittenFrames = 0;
+    static thread_local uint64_t lastConsumedFrames = 0;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now - lastStatsTime >= std::chrono::seconds(1)) {
+        const uint64_t totalWritten = getTotalFramesWritten();
+        const uint64_t totalConsumed = getTotalFramesConsumed();
+        const uint64_t writtenSinceLast = totalWritten - lastWrittenFrames;
+        const uint64_t consumedSinceLast = totalConsumed - lastConsumedFrames;
+
+        LOGD("audio stats: written=%llu/s consumed=%llu/s total=%llu queued=%zu/%zu overflow=%llu underrun=%llu xrun=%d rate=%d burst=%d",
+             static_cast<unsigned long long>(writtenSinceLast),
+             static_cast<unsigned long long>(consumedSinceLast),
+             static_cast<unsigned long long>(totalWritten),
+             availableFrames(),
+             capacityFrames(),
+             static_cast<unsigned long long>(getOverflowFrames()),
+             static_cast<unsigned long long>(getUnderrunFrames()),
+             getStreamXRunCount(),
+             getSampleRate(),
+             getFramesPerBurst()
 		);
+
+        lastWrittenFrames = totalWritten;
+        lastConsumedFrames = totalConsumed;
+        lastStatsTime = now;
     }
 
     return oboe::DataCallbackResult::Continue;
 }
 
-void OboeAudioPlayer::onErrorAfterClose(
-        oboe::AudioStream* /*audioStream*/,
-        oboe::Result error
-) {
+void OboeAudioPlayer::onErrorAfterClose(oboe::AudioStream*, oboe::Result error) {
     LOGE("Oboe stream closed after error: %s - attempting to reopen", oboe::convertToText(error));
 
     const int32_t savedSampleRate = sampleRate;
