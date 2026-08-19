@@ -12,7 +12,6 @@ kotlinxSerializationJson = "1.11.0"
 material = "1.14.0"
 navigationUiKtx = "2.9.8"
 oboe = "1.10.0"
-zstdJni = "1.5.7-11"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -28,7 +27,6 @@ androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 oboe = { module = "com.google.oboe:oboe", version.ref = "oboe" }
-zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

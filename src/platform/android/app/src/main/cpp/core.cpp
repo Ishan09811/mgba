@@ -1,10 +1,11 @@
-#include <jni.h>
-#include <signal.h>
-#include <execinfo.h>
-#include <android/log.h>
-#include <mutex>
-#include <vector>
 #include "core_interface.h"
+#include "no_intro_parser.h"
+#include <android/log.h>
+#include <execinfo.h>
+#include <jni.h>
+#include <mutex>
+#include <signal.h>
+#include <vector>
 
 #define LOG_TAG "core_jni"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -218,6 +219,16 @@ Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigString(JNIEnv* env, jobject thi
     g_core->setConfigString(key, value);
     env->ReleaseStringUTFChars(jKey, key);
     env->ReleaseStringUTFChars(jValue, value);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_org_mgba_1emu_mgba_core_Core_nativeInitNoIntroDB(JNIEnv* env, jobject thiz, jstring jDatPath, jstring jDBPath) {
+	const char* datPath = env->GetStringUTFChars(jDatPath, nullptr);
+	const char* dbPath = env->GetStringUTFChars(jDBPath, nullptr);
+	noIntroInit(dbPath, datPath);
+	env->ReleaseStringUTFChars(jDatPath, datPath);
+	env->ReleaseStringUTFChars(jDBPath, dbPath);
+	return JNI_TRUE;
 }
 
 } // extern "C"

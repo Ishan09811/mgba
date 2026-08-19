@@ -1,14 +1,14 @@
 
-
 #include "core_interface.h"
 #include "audio/oboe_audio_player.h"
+#include "no_intro_parser.h"
 
-#include <android/log.h>
 #include <algorithm>
-#include <cstring>
-#include <vector>
+#include <android/log.h>
 #include <atomic>
 #include <cmath>
+#include <cstring>
+#include <vector>
 
 extern "C" {
 #include "mgba/gb/interface.h"
@@ -84,6 +84,24 @@ public:
             m_core = nullptr;
             return false;
         }
+
+		m_gameTitle.clear();
+		NoIntroMetadata metadata;
+
+		const uint32_t crc32 = getRomCRC32();
+
+		if (noIntroLookupCRC32(crc32, metadata) && !metadata.name.empty()) {
+			m_gameTitle = metadata.name;
+
+			LOGI(
+			    "No-Intro match: title='%s' rom='%s' crc=%08X",
+			    metadata.name.c_str(),
+			    metadata.romName.c_str(),
+			    metadata.crc32
+			);
+		} else {
+			LOGI("No-Intro: no match for CRC32=%08X", crc32);
+		}
 
         return true;
     }
@@ -312,11 +330,7 @@ public:
     }
 
 	std::string getGameTitle() override {
-		if (!m_core) return "";
-		mGameInfo info{};
-		m_core->getGameInfo(m_core, &info);
-		info.title[16] = '\0';
-		return {info.title};
+		return m_gameTitle;
 	}
 
 	std::string getGameCode() override {
@@ -475,6 +489,22 @@ private:
     static constexpr size_t kMaxAudioProcessIterations = 2;
     static constexpr size_t kAudioRingBufferFrames = 4096;
 
+
+	uint32_t getRomCRC32() const {
+		if (!m_core) {
+			return 0;
+		}
+
+		uint32_t crc32 = 0;
+		m_core->checksum(
+		    m_core,
+		    &crc32,
+		    mCHECKSUM_CRC32
+		);
+
+		return crc32;
+	}
+
     enum Platform {
         PLATFORM_UNKNOWN = -1,
         PLATFORM_GB = 1,
@@ -500,6 +530,8 @@ private:
     bool m_resamplerInitialized = false;
 
     static std::atomic<CoreImpl*> s_audioRateOwner;
+
+	std::string m_gameTitle;
 };
 
 std::atomic<CoreImpl*> CoreImpl::s_audioRateOwner{nullptr};

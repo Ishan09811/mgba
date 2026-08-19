@@ -1,10 +1,15 @@
 
 package org.mgba_emu.mgba.core
 
+import android.content.Context
 import android.net.Uri
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.mgba_emu.mgba.mGBAApplication
 import org.mgba_emu.mgba.utils.GlobalConfig
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 enum class Platform(val value: Int) {
     UNKNOWN(-1), GB(1), GBC(2), SGB(3), GBA(4);
@@ -129,6 +134,30 @@ object Core {
 
     fun loadBios(biosBytes: ByteArray): Boolean = nativeLoadBios(biosBytes)
 
+    fun initNoIntroDB(context: Context) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val database = File(context.getExternalFilesDir(null), "database").apply { mkdirs() }
+            val datFile = File(database, "nointro.dat")
+            val dbFile = File(database, "nointro.db").apply { createNewFile() }
+
+            if (dbFile.exists() && dbFile.readBytes().isNotEmpty()) {
+                nativeInitNoIntroDB("", dbFile.absolutePath)
+                if (datFile.exists()) datFile.delete()
+                return@launch
+            }
+
+            if (!datFile.exists()) {
+                context.assets.open("nointro.dat").use { input ->
+                    datFile.outputStream().use { outputStream ->
+                        input.copyTo(outputStream)
+                    }
+                }
+            }
+
+            nativeInitNoIntroDB(datFile.absolutePath, dbFile.absolutePath)
+        }
+    }
+
     private external fun nativeInit(): Boolean
     private external fun nativeShutdown()
     private external fun nativeLoadRom(romData: ByteArray, skipBios: Boolean, rtcEnable: Boolean): Boolean
@@ -147,4 +176,5 @@ object Core {
     private external fun nativeGetPlatform(): Int
     private external fun nativeSetConfigInt(key: String, value: Int)
     private external fun nativeSetConfigString(key: String, value: String)
+    private external fun nativeInitNoIntroDB(datPath: String, dbPath: String): Boolean
 }

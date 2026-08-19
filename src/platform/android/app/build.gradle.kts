@@ -67,6 +67,19 @@ android {
     }
 }
 
+tasks.register<Copy>("copyNoIntroDat") {
+    description = "copying nointro.dat file to assets"
+    val sourceFile = layout.projectDirectory.file("../../../../res/nointro.dat")
+    val destinationDir = layout.projectDirectory.dir("src/main/assets")
+
+    from(sourceFile)
+    into(destinationDir)
+}
+
+tasks.named("preBuild") {
+    dependsOn("copyNoIntroDat")
+}
+
 dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
@@ -78,12 +91,6 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.oboe)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.zstd.jni) {
-        artifact {
-            extension = "aar"
-            type = "aar"
-        }
-    }
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

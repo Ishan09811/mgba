@@ -10,7 +10,6 @@ import org.mgba_emu.mgba.core.Core
 import org.mgba_emu.mgba.model.GameModel
 import org.mgba_emu.mgba.utils.GameCacheManager
 import org.mgba_emu.mgba.utils.IconMetadataHelper.getIconUrl
-import org.mgba_emu.mgba.utils.NoIntroParser
 import org.mgba_emu.mgba.utils.SearchLocationHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -115,7 +114,7 @@ class GamesViewModel : ViewModel() {
 
         while (iterator.hasNext()) {
             val element = iterator.next()
-            if (element.title == null) {
+            if (element.title.isNullOrEmpty()) {
                 if (!Core.init()) continue
                 if (!Core.quickLoadRom(element.uri)) {
                     iterator.remove()
@@ -126,7 +125,7 @@ class GamesViewModel : ViewModel() {
                 val platform = Core.getPlatform()
 
                 element.code = Core.gameCode()
-                element.title = NoIntroParser.findTitle(element.code ?: "") ?: Core.gameTitle()
+                element.title = Core.gameTitle()
                 element.version = Core.gameVersion
                 element.iconUrl = getIconUrl(element.title ?: "", platform)
                 element.platform = platform
@@ -141,7 +140,7 @@ class GamesViewModel : ViewModel() {
         val currentList = _gameList.value.toList()
 
         for (element in currentList) {
-            if (element.title == null) {
+            if (element.title.isNullOrEmpty()) {
                 if (!Core.init()) continue
                 if (!Core.quickLoadRom(element.uri)) {
                     withContext(Dispatchers.Main) {
@@ -151,7 +150,7 @@ class GamesViewModel : ViewModel() {
                 }
 
                 val gameCode = Core.gameCode()
-                val gameTitle = NoIntroParser.findTitle(gameCode) ?: Core.gameTitle()
+                val gameTitle = Core.gameTitle()
                 val platform = Core.getPlatform()
                 val iconUrl = getIconUrl(gameTitle, platform)
 

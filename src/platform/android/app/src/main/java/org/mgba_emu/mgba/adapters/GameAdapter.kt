@@ -37,7 +37,12 @@ class GameAdapter(
     override fun onBindViewHolder(holder: GameViewHolder, position: Int) {
         val game = getItem(position)
 
-        holder.binding.title.text = game.title ?: game.fileName
+        holder.binding.title.text = if (!game.title.isNullOrEmpty()) {
+            game.title
+        } else {
+            game.fileName
+        }
+
         holder.binding.title.isSelected = true
         holder.binding.platform.text = game.platform?.name ?: ""
         holder.binding.icon.load(game.iconUrl ?: "") {

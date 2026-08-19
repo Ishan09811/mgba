@@ -26,7 +26,7 @@ set(USE_FFMPEG OFF CACHE BOOL "" FORCE)
 set(USE_LIBZIP OFF CACHE BOOL "" FORCE)
 set(USE_MINIZIP OFF CACHE BOOL "" FORCE)
 set(USE_ZLIB ON CACHE BOOL "" FORCE)
-set(USE_SQLITE3 OFF CACHE BOOL "" FORCE)
+set(USE_SQLITE3 ON CACHE BOOL "" FORCE)
 set(USE_DISCORD_RPC OFF CACHE BOOL "" FORCE)
 set(USE_EDITLINE OFF CACHE BOOL "" FORCE)
 set(USE_GDB_STUB OFF CACHE BOOL "" FORCE)
@@ -41,6 +41,7 @@ set(MGBA_CORE_TARGET mgba)
 add_library(mgba-android SHARED
     core.cpp
     core_interface.cpp
+    no_intro_parser.cpp
     audio/oboe_audio_player.cpp
 )
 
@@ -54,6 +55,7 @@ endif()
 
 target_include_directories(mgba-android PRIVATE
         "${MGBA_DIR}/include"
+        "${MGBA_DIR}/src"
         "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
