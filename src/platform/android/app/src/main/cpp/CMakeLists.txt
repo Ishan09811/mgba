@@ -34,12 +34,7 @@ set(USE_EPOXY OFF CACHE BOOL "" FORCE)      # desktop GL loader does not work in
 set(BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(BUILD_STATIC ON CACHE BOOL "" FORCE)
 
-add_subdirectory(${MGBA_DIR} mgba_build EXCLUDE_FROM_ALL)
-
-if(TARGET zlibstatic)
-    message(STATUS "mGBA ZIP support: bundled zlibstatic target found - OK")
-endif()
-
+add_subdirectory(${MGBA_DIR} mgba_build)
 
 set(MGBA_CORE_TARGET mgba)
 
@@ -50,14 +45,14 @@ add_library(mgba-android SHARED
 )
 
 # very important to avoid definitions mismatch
-target_compile_definitions(mgba-android PRIVATE
-        ENABLE_VFS
-        ENABLE_DIRECTORIES
-)
+get_target_property(MGBA_DEFS ${MGBA_CORE_TARGET} COMPILE_DEFINITIONS)
+if(MGBA_DEFS)
+    target_compile_definitions(mgba-android PRIVATE
+            ${MGBA_DEFS}
+    )
+endif()
 
 target_include_directories(mgba-android PRIVATE
-        "${MGBA_DIR}"
-        "${MGBA_DIR}/src"
         "${MGBA_DIR}/include"
         "${CMAKE_CURRENT_BINARY_DIR}"
 )
