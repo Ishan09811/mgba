@@ -61,7 +61,7 @@ void noIntroShutdown() {
 	}
 }
 
-bool noIntroLookupCRC32(uint32_t crc32, NoIntroMetadata& out) {
+[[nodiscard]] bool noIntroLookupCRC32(uint32_t crc32, NoIntroMetadata& out) {
 	if (!g_noIntroDB) {
 		return false;
 	}
