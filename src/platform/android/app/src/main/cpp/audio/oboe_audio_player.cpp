@@ -1,3 +1,4 @@
+#include "../log/log.h"
 #include "oboe_audio_player.h"
 #include <android/log.h>
 #include <algorithm>
@@ -6,11 +7,6 @@
 extern "C" {
 #include <mgba-util/math.h>
 }
-
-#define LOG_TAG "oboe_audio_player"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 class SpscRingBuffer {
 public:

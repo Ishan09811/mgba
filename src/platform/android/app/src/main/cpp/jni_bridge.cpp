@@ -1,3 +1,4 @@
+#include "log/log.h"
 #include "core.h"
 #include "no_intro_parser.h"
 #include <android/log.h>
@@ -6,10 +7,6 @@
 #include <jni.h>
 #include <mutex>
 #include <vector>
-
-#define LOG_TAG "core_jni"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
     Core* g_core = nullptr;
