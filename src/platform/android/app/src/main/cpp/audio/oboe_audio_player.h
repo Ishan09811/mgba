@@ -10,6 +10,9 @@ class SpscRingBuffer;
 
 class OboeAudioPlayer : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErrorCallback {
 public:
+	OboeAudioPlayer();
+	~OboeAudioPlayer();
+
     bool start(int32_t sampleRateHz, size_t ringBufferFrames);
     void stop();
 

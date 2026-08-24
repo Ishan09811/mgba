@@ -93,6 +93,12 @@ private:
 	std::atomic<uint64_t> underrun{0};
 };
 
+OboeAudioPlayer::OboeAudioPlayer() = default;
+
+OboeAudioPlayer::~OboeAudioPlayer() {
+	stop();
+}
+
 bool OboeAudioPlayer::start(int32_t sampleRateHz, size_t requestedRingBufferFrames) {
     if (stream != nullptr) {
         LOGI("start() called but a stream already exists; ignoring");

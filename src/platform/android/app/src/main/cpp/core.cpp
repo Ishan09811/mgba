@@ -392,7 +392,7 @@ void Core::configureCoreAudioBuffer(int sourceRate) {
 	const double samplesPerFrame = static_cast<double>(sourceRate) * static_cast<double>(m_core->frameCycles(m_core)) /
 	    static_cast<double>(m_core->frequency(m_core));
 
-	auto bufferFrames = static_cast<size_t>(std::ceil(samplesPerFrame * 2.0));
+	auto bufferFrames = static_cast<size_t>(std::ceil(samplesPerFrame)) * 2;
 	bufferFrames = std::max<size_t>(bufferFrames, 2);
 	bufferFrames = std::min<size_t>(bufferFrames, kMaxCoreAudioBufferFrames);
 	m_core->setAudioBufferSize(m_core, bufferFrames);
