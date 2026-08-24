@@ -23,13 +23,12 @@ class EmulationThread(
 
     override fun run() {
         running.set(true)
-        val frameIntervalNs = NANOS_PER_SECOND / GBA_FPS
         var nextFrameDeadlineNs = System.nanoTime()
         lastFpsTimestampNs = System.nanoTime()
 
         while (running.get()) {
             if (paused) {
-                sleepQuietly(50)
+                sleepQuietly()
                 nextFrameDeadlineNs = System.nanoTime()
                 lastFpsTimestampNs = System.nanoTime()
                 continue
@@ -38,7 +37,7 @@ class EmulationThread(
             stepOneFrame()
             calculateFps()
 
-            nextFrameDeadlineNs += frameIntervalNs.toLong()
+            nextFrameDeadlineNs += FRAME_INTERVAL_NS.toLong()
             val now = System.nanoTime()
             val remainingNs = nextFrameDeadlineNs - now
 
@@ -97,7 +96,7 @@ class EmulationThread(
         }
     }
 
-    private fun sleepQuietly(millis: Long) {
+    private fun sleepQuietly(millis: Long = 50) {
         try {
             sleep(millis)
         } catch (_: InterruptedException) {
@@ -107,7 +106,9 @@ class EmulationThread(
 
     companion object {
         private const val NANOS_PER_SECOND = 1_000_000_000.0
-        const val GBA_FPS = 16777216.0 / 280896.0
-        private val MAX_LAG_NS = (NANOS_PER_SECOND / GBA_FPS * 5).toLong()
+        private const val GBA_FPS = 16777216.0 / 280896.0
+
+        private const val FRAME_INTERVAL_NS = NANOS_PER_SECOND / GBA_FPS
+        private const val MAX_LAG_NS = (NANOS_PER_SECOND / GBA_FPS * 5).toLong()
     }
 }
