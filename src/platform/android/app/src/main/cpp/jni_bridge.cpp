@@ -1,4 +1,5 @@
 #include "log/log.h"
+#include "utils/jni_string.h"
 #include "core.h"
 #include "no_intro_parser.h"
 #include <csignal>
@@ -13,11 +14,6 @@ namespace {
 }
 
 extern "C" {
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
-	//registerSignalHandlers();
-	return JNI_VERSION_1_6;
-}
 
 JNIEXPORT jboolean JNICALL
 Java_org_mgba_1emu_mgba_core_Core_nativeInit(JNIEnv* env, jobject /*thiz*/) {
@@ -199,31 +195,27 @@ Java_org_mgba_1emu_mgba_core_Core_nativeGetPlatform(JNIEnv* env, jobject /*thiz*
 
 JNIEXPORT void JNICALL
 Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigInt(JNIEnv* env, jobject thiz, jstring jKey, jint value) {
-    const char* key = env->GetStringUTFChars(jKey, nullptr);
+	JniString key(env, jKey);
     g_core->setConfigInt(key, value);
     if (strcmp(key, "mute") == 0) {
         g_core->setAudioMuted(value == 1);
     }
-    LOGI("Config Applied -> Key: '%s' = %d", key, value);
-    env->ReleaseStringUTFChars(jKey, key);
+
+    LOGI("Config Applied -> Key: '%s' = %d", key.c_str(), value);
 }
 
 JNIEXPORT void JNICALL
 Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigString(JNIEnv* env, jobject thiz, jstring jKey, jstring jValue) {
-    const char* key = env->GetStringUTFChars(jKey, nullptr);
-    const char* value = env->GetStringUTFChars(jValue, nullptr);
+	JniString key(env, jKey);
+	JniString value(env, jValue);
     g_core->setConfigString(key, value);
-    env->ReleaseStringUTFChars(jKey, key);
-    env->ReleaseStringUTFChars(jValue, value);
 }
 
 JNIEXPORT jboolean JNICALL
 Java_org_mgba_1emu_mgba_core_Core_nativeInitNoIntroDB(JNIEnv* env, jobject thiz, jstring jDatPath, jstring jDBPath) {
-	const char* datPath = env->GetStringUTFChars(jDatPath, nullptr);
-	const char* dbPath = env->GetStringUTFChars(jDBPath, nullptr);
+	JniString datPath(env, jDatPath);
+	JniString dbPath(env, jDBPath);
 	noIntroInit(dbPath, datPath);
-	env->ReleaseStringUTFChars(jDatPath, datPath);
-	env->ReleaseStringUTFChars(jDBPath, dbPath);
 	return JNI_TRUE;
 }
 
