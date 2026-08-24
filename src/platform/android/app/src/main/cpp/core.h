@@ -39,14 +39,8 @@ enum class GbaKey : uint16_t {
 
 class Core {
 public:
-	Core() {
-		s_audioRateOwner.store(this, std::memory_order_release);
-	}
-
-	~Core() {
-		Core* expected = this;
-		s_audioRateOwner.compare_exchange_strong(expected, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
-	}
+	Core();
+	~Core();
 
 	static Core* create() {
 		return new Core();
@@ -111,7 +105,13 @@ private:
 
 	uint32_t getRomCRC32() const;
 
-	enum Platform { PLATFORM_UNKNOWN = -1, PLATFORM_GB = 1, PLATFORM_GBC = 2, PLATFORM_SGB = 3, PLATFORM_GBA = 4 };
+	enum Platform {
+		PLATFORM_UNKNOWN = -1,
+		PLATFORM_GB = 1,
+		PLATFORM_GBC = 2,
+		PLATFORM_SGB = 3,
+		PLATFORM_GBA = 4
+	};
 
 	std::string m_gameTitle;
 

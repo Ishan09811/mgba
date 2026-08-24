@@ -4,6 +4,15 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+Core::Core() {
+    s_audioRateOwner.store(this, std::memory_order_release);
+}
+
+Core::~Core() {
+    Core * expected = this;
+    s_audioRateOwner.compare_exchange_strong(expected, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
+}
+
 bool Core::init() {
 	LOGI("Core::init");
 	return true;
