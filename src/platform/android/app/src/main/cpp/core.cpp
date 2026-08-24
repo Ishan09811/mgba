@@ -362,12 +362,12 @@ bool Core::loadBios(const uint8_t* data, size_t size) {
 }
 
 void Core::setConfigInt(const char* key, int value) {
-	if (!m_core)
-		return;
+	if (!m_core) return;
 	mCoreConfigSetIntValue(&m_core->config, key, value);
 }
 
 void Core::setConfigString(const char* key, const char* value) {
+	if (!m_core) return;
 	mCoreConfigSetValue(&m_core->config, key, value);
 }
 
