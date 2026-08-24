@@ -1,234 +1,455 @@
-#include "core_interface.h"
-#include "no_intro_parser.h"
-#include <android/log.h>
-#include <execinfo.h>
-#include <jni.h>
-#include <mutex>
-#include <signal.h>
-#include <vector>
+#include "core.h"
 
-#define LOG_TAG "core_jni"
+#define LOG_TAG "core"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-namespace {
-    CoreInterface* g_core = nullptr;
-    std::mutex g_coreMutex;
+bool Core::init() {
+	LOGI("Core::init");
+	return true;
 }
 
-extern "C" {
-
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* /*reserved*/) {
-	//registerSignalHandlers();
-	return JNI_VERSION_1_6;
+void Core::shutdown() {
+	unloadRom();
+	m_audioPlayer.stop();
 }
 
-JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeInit(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core != nullptr) {
-        LOGI("nativeInit called but core already exists; reusing");
-        return JNI_TRUE;
-    }
-    g_core = createCore();
-    bool ok = g_core->init();
-    if (!ok) {
-        LOGE("core init failed");
-        delete g_core;
-        g_core = nullptr;
-    }
-    return ok ? JNI_TRUE : JNI_FALSE;
+bool Core::quickLoadRom(const uint8_t* data, size_t size) {
+	if (m_core != nullptr) {
+		unloadRom();
+	}
+
+	m_romBuffer.assign(data, data + size);
+
+	VFile* vf = VFileFromConstMemory(m_romBuffer.data(), m_romBuffer.size());
+	if (!vf) {
+		LOGE("VFileFromConstMemory failed");
+		return false;
+	}
+
+	m_core = mCoreFindVF(vf);
+	if (!m_core) {
+		LOGE("mCoreFindVF failed to identify ROM type");
+		vf->close(vf);
+		return false;
+	}
+
+	if (!m_core->init(m_core)) {
+		LOGE("mCore init failed");
+		m_core->deinit(m_core);
+		m_core = nullptr;
+		return false;
+	}
+
+	if (!m_core->loadROM(m_core, vf)) {
+		LOGE("mCore loadROM failed");
+		m_core->deinit(m_core);
+		m_core = nullptr;
+		return false;
+	}
+
+	m_gameTitle.clear();
+	NoIntroMetadata metadata;
+
+	const uint32_t crc32 = getRomCRC32();
+
+	if (noIntroLookupCRC32(crc32, metadata) && !metadata.name.empty()) {
+		m_gameTitle = metadata.name;
+
+		LOGI("No-Intro match: title='%s' rom='%s' crc=%08X", metadata.name.c_str(), metadata.romName.c_str(),
+		     metadata.crc32);
+	} else {
+		LOGI("No-Intro: no match for CRC32=%08X", crc32);
+	}
+
+	return true;
 }
 
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeShutdown(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
+bool Core::loadRom(const uint8_t* data, size_t size, bool skipBios, bool rtcEnable) {
+	if (m_core != nullptr) {
+		unloadRom();
+	}
 
-	if (g_core == nullptr) {
-		LOGI("nativeShutdown ignored: g_core is already NULL.");
+	m_romBuffer.assign(data, data + size);
+	VFile* vf = VFileFromConstMemory(m_romBuffer.data(), m_romBuffer.size());
+	if (!vf) {
+		LOGE("VFileFromConstMemory failed");
+		return false;
+	}
+
+	m_core = mCoreFindVF(vf);
+	if (!m_core) {
+		LOGE("mCoreFindVF failed to identify ROM type");
+		vf->close(vf);
+		return false;
+	}
+
+	if (!m_core->init(m_core)) {
+		LOGE("mCore init failed");
+		m_core->deinit(m_core);
+		m_core = nullptr;
+		return false;
+	}
+
+	mCoreInitConfig(m_core, nullptr);
+
+	mCoreConfigSetIntValue(&m_core->config, "skipBios", skipBios ? 1 : 0);
+	mCoreConfigSetIntValue(&m_core->config, "hw.rtc", rtcEnable ? 1 : 0);
+
+	LOGI("Config Applied -> Key: '%s' = %d", "skipBios", skipBios ? 1 : 0);
+	LOGI("Config Applied -> Key: '%s' = %d", "hw.rtc", rtcEnable ? 1 : 0);
+
+	unsigned width, height;
+	m_core->baseVideoSize(m_core, &width, &height);
+	m_width = static_cast<int>(width);
+	m_height = static_cast<int>(height);
+
+	m_videoBuffer.assign(static_cast<size_t>(m_width) * m_height, 0);
+
+	m_core->setVideoBuffer(m_core, m_videoBuffer.data(), static_cast<size_t>(m_width));
+
+	m_sampleRate = 0;
+
+	m_avStream = { };
+	m_avStream.audioRateChanged = &Core::audioRateChangedThunk;
+	m_core->setAVStream(m_core, &m_avStream);
+
+	if (!m_core->loadROM(m_core, vf)) {
+		LOGE("mCore loadROM failed");
+		m_core->deinit(m_core);
+		m_core = nullptr;
+		return false;
+	}
+
+	m_coreSampleRate = static_cast<int>(m_core->audioSampleRate(m_core));
+	if (m_coreSampleRate <= 0) {
+		LOGE("Invalid native audio sample rate: %d", m_coreSampleRate);
+		m_core->deinit(m_core);
+		m_core = nullptr;
+		return false;
+	}
+
+	configureCoreAudioBuffer(m_coreSampleRate);
+
+	if (m_audioPlayer.hasStream()) {
+		m_audioPlayer.stop();
+	}
+
+	constexpr int kPreferredOutputRate = 48000;
+	if (!m_audioPlayer.start(kPreferredOutputRate, kAudioRingBufferFrames)) {
+		LOGE("Failed to start Oboe audio playback, continuing without audio");
+	}
+
+	m_sampleRate = m_audioPlayer.getSampleRate();
+	if (m_sampleRate <= 0) {
+		LOGE("Oboe returned invalid sample rate: %d", m_sampleRate);
+		m_audioPlayer.stop();
+		m_core->deinit(m_core);
+		m_core = nullptr;
+		return false;
+	}
+
+	mAudioBufferInit(&m_resampledAudio, kResampledAudioBufferFrames, 2);
+	mAudioResamplerInit(&m_audioResampler, mINTERPOLATOR_SINC);
+	mAudioResamplerSetSource(&m_audioResampler, m_core->getAudioBuffer(m_core), static_cast<double>(m_coreSampleRate),
+	                         true);
+	mAudioResamplerSetDestination(&m_audioResampler, &m_resampledAudio, static_cast<double>(m_sampleRate));
+
+	m_resamplerInitialized = true;
+	m_pendingAudioRate.store(0, std::memory_order_release);
+
+	LOGI("ROM loaded: %dx%d coreAudioRate=%d outputRate=%d", m_width, m_height, m_coreSampleRate, m_sampleRate);
+
+	m_core->reset(m_core);
+	resetAudioPipeline();
+	return true;
+}
+
+void Core::unloadRom() {
+	m_audioPlayer.stop();
+
+	if (m_resamplerInitialized) {
+		mAudioResamplerDeinit(&m_audioResampler);
+		mAudioBufferDeinit(&m_resampledAudio);
+		m_resamplerInitialized = false;
+	}
+
+	if (m_core) {
+		m_core->unloadROM(m_core);
+		m_core->deinit(m_core);
+		m_core = nullptr;
+	}
+
+	m_pendingAudioRate.store(0, std::memory_order_release);
+	m_coreSampleRate = 0;
+	m_sampleRate = 0;
+	m_romBuffer.clear();
+	m_videoBuffer.clear();
+}
+
+void Core::reset() {
+	if (m_core) {
+		m_pendingAudioRate.store(0, std::memory_order_release);
+		m_core->reset(m_core);
+		m_coreSampleRate = static_cast<int>(m_core->audioSampleRate(m_core));
+		configureCoreAudioBuffer(m_coreSampleRate);
+		if (m_resamplerInitialized) {
+			resetAudioPipeline();
+		}
+	}
+}
+
+void Core::runFrame() {
+	if (!m_core || !m_resamplerInitialized)
 		return;
+
+	m_core->runFrame(m_core);
+
+	applyPendingAudioRateChange();
+
+	for (size_t i = 0; i < kMaxAudioProcessIterations; ++i) {
+		if (m_audioPlayer.freeFrames() == 0)
+			break;
+
+		const size_t sourceBefore = mAudioBufferAvailable(m_core->getAudioBuffer(m_core));
+		const size_t outputBefore = mAudioBufferAvailable(&m_resampledAudio);
+		const size_t produced = mAudioResamplerProcess(&m_audioResampler);
+
+		drainResampledAudio();
+
+		const size_t sourceAfter = mAudioBufferAvailable(m_core->getAudioBuffer(m_core));
+		const size_t outputAfter = mAudioBufferAvailable(&m_resampledAudio);
+
+		if (produced == 0 && sourceBefore == sourceAfter && outputBefore == outputAfter) {
+			break;
+		}
+	}
+}
+
+const uint32_t* Core::getVideoBuffer() {
+	return reinterpret_cast<const uint32_t*>(m_videoBuffer.data());
+}
+
+int Core::getWidth() const {
+	return m_width;
+}
+int Core::getHeight() const {
+	return m_height;
+}
+
+void Core::setKeys(uint16_t keyMask) {
+	if (m_core)
+		m_core->setKeys(m_core, static_cast<uint32_t>(keyMask));
+}
+
+bool Core::saveState(uint8_t* outBuffer, size_t bufferSize, size_t* outWritten) {
+	if (!m_core) {
+		*outWritten = 0;
+		return false;
+	}
+	VFile* vf = VFileFromMemory(outBuffer, bufferSize);
+	if (!vf) {
+		*outWritten = 0;
+		return false;
 	}
 
-
-    if (g_core != nullptr) {
-        g_core->shutdown();
-        delete g_core;
-        g_core = nullptr;
-    }
+	bool ok = mCoreSaveStateNamed(m_core, vf, SAVESTATE_SAVEDATA | SAVESTATE_SCREENSHOT);
+	*outWritten = ok ? static_cast<size_t>(vf->seek(vf, 0, SEEK_CUR)) : 0;
+	vf->close(vf);
+	return ok;
 }
 
-JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeQuickLoadRom(JNIEnv* env, jobject /*thiz*/, jbyteArray romData) {
-	if (romData == nullptr) {
-		LOGE("nativeLoadRom called with a null romData array!");
-		return JNI_FALSE;
+bool Core::loadState(const uint8_t* data, size_t size) {
+	if (!m_core)
+		return false;
+	VFile* vf = VFileFromConstMemory(data, size);
+	if (!vf)
+		return false;
+	bool ok = mCoreLoadStateNamed(m_core, vf, SAVESTATE_SAVEDATA | SAVESTATE_SCREENSHOT);
+	vf->close(vf);
+	return ok;
+}
+
+bool Core::loadSaveData(const uint8_t* data, size_t size) {
+	if (!m_core)
+		return false;
+	bool ok = m_core->savedataRestore(m_core, data, size, true);
+	if (!ok) {
+		LOGE("savedataRestore failed (size=%zu)", size);
+	}
+	return ok;
+}
+
+std::vector<uint8_t> Core::exportSaveData() {
+	if (!m_core)
+		return { };
+	void* sram = nullptr;
+	size_t size = m_core->savedataClone(m_core, &sram);
+	if (size == 0 || sram == nullptr) {
+		return { };
 	}
 
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core == nullptr) {
-        LOGE("nativeQuickLoadRom called before nativeInit");
-        return JNI_FALSE;
-    }
-    jsize len = env->GetArrayLength(romData);
-    std::vector<uint8_t> buffer(static_cast<size_t>(len));
-    env->GetByteArrayRegion(romData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
-
-    bool ok = g_core->quickLoadRom(buffer.data(), buffer.size());
-    LOGI("nativeQuickLoadRom: %zu bytes, success=%d", buffer.size(), ok);
-    return ok ? JNI_TRUE : JNI_FALSE;
+	std::vector<uint8_t> result(static_cast<uint8_t*>(sram), static_cast<uint8_t*>(sram) + size);
+	free(sram);
+	return result;
 }
 
-JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeLoadRom(JNIEnv* env, jobject /*thiz*/, jbyteArray romData, jboolean skipBios, jboolean rtcEnable) {
-	if (romData == nullptr) {
-		LOGE("nativeLoadRom called with a null romData array!");
-		return JNI_FALSE;
+std::string Core::getGameTitle() {
+	return m_gameTitle;
+}
+
+std::string Core::getGameCode() {
+	if (!m_core)
+		return "";
+	mGameInfo info { };
+	m_core->getGameInfo(m_core, &info);
+	info.code[4] = '\0';
+	return { info.code };
+}
+
+int Core::getPlatform() {
+	if (!m_core)
+		return PLATFORM_UNKNOWN;
+
+	int basePlatform = m_core->platform(m_core);
+
+	if (basePlatform == mPLATFORM_GBA) {
+		return PLATFORM_GBA;
 	}
 
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core == nullptr) {
-        LOGE("nativeLoadRom called before nativeInit");
-        return JNI_FALSE;
-    }
-    jsize len = env->GetArrayLength(romData);
-    std::vector<uint8_t> buffer(static_cast<size_t>(len));
-    env->GetByteArrayRegion(romData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
+	if (basePlatform == mPLATFORM_GB) {
+		auto* gbCore = reinterpret_cast<struct GB*>(m_core->board);
+		if (!gbCore)
+			return PLATFORM_GB;
 
-    bool ok = g_core->loadRom(buffer.data(), buffer.size(), skipBios, rtcEnable);
-    LOGI("nativeLoadRom: %zu bytes, success=%d", buffer.size(), ok);
-    return ok ? JNI_TRUE : JNI_FALSE;
+		switch (gbCore->model) {
+		case GB_MODEL_CGB:
+			return PLATFORM_GBC;
+		case GB_MODEL_SGB:
+			return PLATFORM_SGB;
+		default:
+			return PLATFORM_GB;
+		}
+	}
+
+	return PLATFORM_UNKNOWN;
 }
 
-JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeLoadBios(JNIEnv* env, jobject /*thiz*/, jbyteArray biosData) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core == nullptr) {
-        LOGE("nativeLoadBios called before nativeInit");
-        return JNI_FALSE;
-    }
-    jsize len = env->GetArrayLength(biosData);
-    std::vector<uint8_t> buffer(static_cast<size_t>(len));
-    env->GetByteArrayRegion(biosData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
+bool Core::loadBios(const uint8_t* data, size_t size) {
+	if (!m_core) {
+		LOGE("loadBios called before loadRom");
+		return false;
+	}
 
-    bool ok = g_core->loadBios(buffer.data(), buffer.size());
-    LOGI("nativeLoadBios: %zu bytes, success=%d", buffer.size(), ok);
-    return ok ? JNI_TRUE : JNI_FALSE;
+	VFile* vf = VFileFromConstMemory(data, size);
+	if (!vf) {
+		LOGE("VFileFromConstMemory failed for BIOS data");
+		return false;
+	}
+
+	bool ok = m_core->loadBIOS(m_core, vf, 0);
+	if (!ok) {
+		LOGE("mCore loadBIOS rejected the file (size=%zu)", size);
+		vf->close(vf);
+	}
+	return ok;
 }
 
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeReset(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core) g_core->reset();
+void Core::setConfigInt(const char* key, int value) {
+	if (!m_core)
+		return;
+	mCoreConfigSetIntValue(&m_core->config, key, value);
 }
 
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeRunFrame(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core) g_core->runFrame();
+void Core::setConfigString(const char* key, const char* value) {
+	mCoreConfigSetValue(&m_core->config, key, value);
 }
 
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeGetVideoBuffer(JNIEnv* env, jobject /*thiz*/, jintArray outPixels) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (!g_core) return;
-    const uint32_t* buf = g_core->getVideoBuffer();
-    jsize len = env->GetArrayLength(outPixels);
-    env->SetIntArrayRegion(outPixels, 0, len, reinterpret_cast<const jint*>(buf));
+void Core::setAudioMuted(bool mute) {
+	m_audioPlayer.setMuted(mute);
 }
 
-JNIEXPORT jint JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeGetWidth(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    return g_core ? g_core->getWidth() : 0;
+void Core::audioRateChangedThunk(struct mAVStream*, unsigned rate) {
+	Core* self = s_audioRateOwner.load(std::memory_order_acquire);
+	if (self) {
+		self->m_pendingAudioRate.store(static_cast<int>(rate), std::memory_order_release);
+	}
 }
 
-JNIEXPORT jint JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeGetHeight(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    return g_core ? g_core->getHeight() : 0;
+void Core::configureCoreAudioBuffer(int sourceRate) {
+	if (!m_core || sourceRate <= 0)
+		return;
+
+	const double samplesPerFrame = static_cast<double>(sourceRate) * static_cast<double>(m_core->frameCycles(m_core)) /
+	    static_cast<double>(m_core->frequency(m_core));
+
+	auto bufferFrames = static_cast<size_t>(std::ceil(samplesPerFrame * 2.0));
+	bufferFrames = std::max<size_t>(bufferFrames, 2);
+	bufferFrames = std::min<size_t>(bufferFrames, kMaxCoreAudioBufferFrames);
+	m_core->setAudioBufferSize(m_core, bufferFrames);
+
+	LOGI("Core audio buffer: sourceRate=%d samplesPerFrame=%.6f frames=%zu", sourceRate, samplesPerFrame, bufferFrames);
 }
 
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeSetKeys(JNIEnv* env, jobject /*thiz*/, jint keyMask) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (g_core) g_core->setKeys(static_cast<uint16_t>(keyMask));
+void Core::applyPendingAudioRateChange() {
+	if (!m_resamplerInitialized || !m_core)
+		return;
+
+	const int newRate = m_pendingAudioRate.exchange(0, std::memory_order_acq_rel);
+	if (newRate <= 0 || newRate == m_coreSampleRate)
+		return;
+
+	const int oldRate = m_coreSampleRate;
+	m_coreSampleRate = newRate;
+	configureCoreAudioBuffer(newRate);
+	resetAudioPipeline();
+
+	LOGI("native audio rate changed: %d -> %d, outputRate=%d", oldRate, newRate, m_sampleRate);
 }
 
-// restores previously persisted cart save bytes into the core, must be called after nativeLoadRom()
-JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeLoadSaveData(JNIEnv* env, jobject /*thiz*/, jbyteArray saveData) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    if (!g_core) return JNI_FALSE;
-    jsize len = env->GetArrayLength(saveData);
-    std::vector<uint8_t> buffer(static_cast<size_t>(len));
-    if (len > 0) {
-        env->GetByteArrayRegion(saveData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
-    }
-    bool ok = g_core->loadSaveData(buffer.data(), buffer.size());
-    LOGI("nativeLoadSaveData: %zu bytes, success=%d", buffer.size(), ok);
-    return ok ? JNI_TRUE : JNI_FALSE;
+void Core::resetAudioPipeline() {
+	if (!m_core || !m_resamplerInitialized)
+		return;
+
+	mAudioBufferClear(&m_resampledAudio);
+	mAudioResamplerDeinit(&m_audioResampler);
+	mAudioResamplerInit(&m_audioResampler, mINTERPOLATOR_SINC);
+	mAudioResamplerSetSource(&m_audioResampler, m_core->getAudioBuffer(m_core), static_cast<double>(m_coreSampleRate),
+	                         true);
+
+	mAudioResamplerSetDestination(&m_audioResampler, &m_resampledAudio, static_cast<double>(m_sampleRate));
 }
 
-// returns the current cart save data as a new Java byte[] for the caller to persist to disk. returns a zero length array if there's no
-JNIEXPORT jbyteArray JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeExportSaveData(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    std::vector<uint8_t> data = g_core ? g_core->exportSaveData() : std::vector<uint8_t>();
-    jbyteArray result = env->NewByteArray(static_cast<jsize>(data.size()));
-    if (!data.empty()) {
-        env->SetByteArrayRegion(result, 0, static_cast<jsize>(data.size()), reinterpret_cast<const jbyte*>(data.data()));
-    }
-    return result;
+void Core::drainResampledAudio() {
+	if (!m_resamplerInitialized)
+		return;
+
+	const size_t available = mAudioBufferAvailable(&m_resampledAudio);
+	const size_t freeFrames = m_audioPlayer.freeFrames();
+	const size_t frames = std::min({ available, freeFrames, kAudioDrainFrames });
+
+	if (frames == 0)
+		return;
+
+	int16_t audioBuf[kAudioDrainFrames * 2];
+	const size_t read = mAudioBufferRead(&m_resampledAudio, audioBuf, frames);
+	if (read == 0)
+		return;
+
+	const size_t written = m_audioPlayer.write(audioBuf, read);
+	if (written != read) {
+		LOGE("audio output mismatch: resampled=%zu written=%zu", read, written);
+	}
 }
 
-JNIEXPORT jstring JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeGetGameTitle(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    std::string title = g_core ? g_core->getGameTitle() : "";
-    return env->NewStringUTF(title.c_str());
+uint32_t Core::getRomCRC32() const {
+	if (!m_core) {
+		return 0;
+	}
+
+	uint32_t crc32 = 0;
+	m_core->checksum(m_core, &crc32, mCHECKSUM_CRC32);
+
+	return crc32;
 }
 
-JNIEXPORT jstring JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeGetGameCode(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    std::string code = g_core ? g_core->getGameCode() : "";
-    return env->NewStringUTF(code.c_str());
-}
-
-JNIEXPORT jint JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeGetPlatform(JNIEnv* env, jobject /*thiz*/) {
-    std::lock_guard<std::mutex> lock(g_coreMutex);
-    return g_core ? g_core->getPlatform() : -1;
-}
-
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigInt(JNIEnv* env, jobject thiz, jstring jKey, jint value) {
-    const char* key = env->GetStringUTFChars(jKey, nullptr);
-    g_core->setConfigInt(key, value);
-    if (strcmp(key, "mute") == 0) {
-        g_core->setAudioMuted(value == 1);
-    }
-    LOGI("Config Applied -> Key: '%s' = %d", key, value);
-    env->ReleaseStringUTFChars(jKey, key);
-}
-
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigString(JNIEnv* env, jobject thiz, jstring jKey, jstring jValue) {
-    const char* key = env->GetStringUTFChars(jKey, nullptr);
-    const char* value = env->GetStringUTFChars(jValue, nullptr);
-    g_core->setConfigString(key, value);
-    env->ReleaseStringUTFChars(jKey, key);
-    env->ReleaseStringUTFChars(jValue, value);
-}
-
-JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeInitNoIntroDB(JNIEnv* env, jobject thiz, jstring jDatPath, jstring jDBPath) {
-	const char* datPath = env->GetStringUTFChars(jDatPath, nullptr);
-	const char* dbPath = env->GetStringUTFChars(jDBPath, nullptr);
-	noIntroInit(dbPath, datPath);
-	env->ReleaseStringUTFChars(jDatPath, datPath);
-	env->ReleaseStringUTFChars(jDBPath, dbPath);
-	return JNI_TRUE;
-}
-
-} // extern "C"

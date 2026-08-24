@@ -39,8 +39,8 @@ add_subdirectory(${MGBA_DIR} mgba_build)
 set(MGBA_CORE_TARGET mgba)
 
 add_library(mgba-android SHARED
+    jni_bridge.cpp
     core.cpp
-    core_interface.cpp
     no_intro_parser.cpp
     audio/oboe_audio_player.cpp
 )
