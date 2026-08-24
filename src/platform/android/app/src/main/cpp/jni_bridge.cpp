@@ -1,7 +1,6 @@
 #include "log/log.h"
 #include "core.h"
 #include "no_intro_parser.h"
-#include <android/log.h>
 #include <csignal>
 #include <execinfo.h>
 #include <jni.h>

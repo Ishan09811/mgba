@@ -1,6 +1,5 @@
 #include "../log/log.h"
 #include "oboe_audio_player.h"
-#include <android/log.h>
 #include <algorithm>
 #include <chrono>
 
