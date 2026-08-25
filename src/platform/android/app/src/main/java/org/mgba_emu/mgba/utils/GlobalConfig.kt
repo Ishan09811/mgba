@@ -19,14 +19,12 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
     // VIDEO
     @Volatile var frameskip: Int = 0 // 0 to 10
-    @Volatile var videoSync: Boolean = true // VSync
     @Volatile var fpsCounter: Boolean = false
     @Volatile var aspectRatio: String = "keep" // "keep", "stretch"
 
     // AUDIO
     @Volatile var volume: Int = 256 // max volume = 256
     @Volatile var mute: Boolean = false
-    @Volatile var audioSync: Boolean = true
 
     // SYSTEM
     @Volatile var rtcEnable: Boolean = true // Real Time Clock
@@ -43,14 +41,12 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
             // Video
             frameskip = prefs.getInt("pref_frameskip", 0)
-            videoSync = prefs.getBoolean("pref_video_sync", true)
             fpsCounter = prefs.getBoolean("pref_fps_counter", false)
             aspectRatio = prefs.getString("pref_aspect_ratio", "keep") ?: "keep"
 
             // Audio
             volume = prefs.getInt("pref_volume", 256)
             mute = prefs.getBoolean("pref_mute", false)
-            audioSync = prefs.getBoolean("pref_audio_sync", true)
 
             // System
             rtcEnable = prefs.getBoolean("pref_rtc", true)
@@ -70,14 +66,12 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
             // Video
             "pref_frameskip" -> frameskip = sharedPreferences.getInt(key, 0)
-            "pref_video_sync" -> videoSync = sharedPreferences.getBoolean(key, true)
             "pref_fps_counter" -> fpsCounter = sharedPreferences.getBoolean(key, false)
             "pref_aspect_ratio" -> aspectRatio = sharedPreferences.getString(key, "keep") ?: "keep"
 
             // Audio
             "pref_volume" -> volume = sharedPreferences.getInt(key, 256)
             "pref_mute" -> mute = sharedPreferences.getBoolean(key, false)
-            "pref_audio_sync" -> audioSync = sharedPreferences.getBoolean(key, true)
 
             // System
             "pref_rtc" -> rtcEnable = sharedPreferences.getBoolean(key, true)

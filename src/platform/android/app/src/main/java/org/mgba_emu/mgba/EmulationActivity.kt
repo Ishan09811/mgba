@@ -94,10 +94,13 @@ class EmulationActivity : AppCompatActivity() {
             val ok = Core.loadRom(uri)
             if (ok) {
                 currentGameCode = Core.gameCode()
-                if (BiosStore.has(Core.getPlatform())) {
-                    val biosBytes = BiosStore.load(Core.getPlatform())
-                    if (!Core.loadBios(biosBytes)) {
-                        Toast.makeText(this, "Imported BIOS was rejected", Toast.LENGTH_SHORT).show()
+                if (!GlobalConfig.skipBios) {
+                    if (BiosStore.has(Core.getPlatform())) {
+                        val biosBytes = BiosStore.load(Core.getPlatform())
+                        if (!Core.loadBios(biosBytes)) {
+                            Toast.makeText(this, "Imported BIOS was rejected", Toast.LENGTH_SHORT)
+                                .show()
+                        }
                     }
                 }
 

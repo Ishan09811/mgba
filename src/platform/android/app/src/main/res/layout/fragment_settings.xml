@@ -144,16 +144,6 @@
                     android:layout_height="wrap_content"
                     android:background="?attr/selectableItemBackground"
                     android:padding="16dp"
-                    app:key="pref_video_sync"
-                    app:defaultValue="true"
-                    app:title="Video Sync"
-                    app:subtitle="" />
-
-                <org.mgba_emu.mgba.preferences.SwitchPreference
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:padding="16dp"
                     app:key="pref_fps_counter"
                     app:defaultValue="false"
                     app:title="Show FPS"
@@ -193,17 +183,6 @@
                     app:defaultValue="false"
                     app:title="Mute Audio"
                     app:subtitle="" />
-
-                <org.mgba_emu.mgba.preferences.SwitchPreference
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:padding="16dp"
-                    app:key="pref_audio_sync"
-                    app:defaultValue="true"
-                    app:title="Audio Sync"
-                    app:subtitle="" />
-
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -238,17 +217,6 @@
                     app:defaultValue="true"
                     app:title="Realtime Clock"
                     app:subtitle="" />
-
-                <org.mgba_emu.mgba.preferences.SwitchPreference
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:padding="16dp"
-                    app:key="pref_rewind"
-                    app:defaultValue="false"
-                    app:title="Rewind"
-                    app:subtitle="" />
-
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
