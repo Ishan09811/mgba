@@ -6,15 +6,11 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.edit
+import androidx.core.content.withStyledAttributes
 import com.google.android.material.materialswitch.MaterialSwitch
 import org.mgba_emu.mgba.R
-import androidx.core.content.withStyledAttributes
-import androidx.core.content.edit
 import org.mgba_emu.mgba.utils.GlobalConfig
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class SwitchPreference @JvmOverloads constructor(
     context: Context,
@@ -59,12 +55,7 @@ class SwitchPreference @JvmOverloads constructor(
                 }
 
                 prefKey?.let { key ->
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val savedValue = sharedPreferences.getBoolean(key, defaultValue)
-                        withContext(Dispatchers.Main) {
-                            switchView.isChecked = savedValue
-                        }
-                    }
+                    switchView.isChecked = sharedPreferences.getBoolean(key, defaultValue)
                 }
             }
         }
@@ -75,9 +66,7 @@ class SwitchPreference @JvmOverloads constructor(
 
         switchView.setOnCheckedChangeListener { _, isChecked ->
             prefKey?.let { key ->
-                CoroutineScope(Dispatchers.IO).launch {
-                    sharedPreferences.edit { putBoolean(key, isChecked) }
-                }
+                sharedPreferences.edit { putBoolean(key, isChecked) }
             }
         }
     }
