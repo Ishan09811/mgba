@@ -124,7 +124,7 @@ protected:
 	virtual void resizeEvent(QResizeEvent*) override;
 
 private slots:
-	void updateContentSize();
+	void setContentSize(const QSize&);
 
 private:
 	void resizePainter();
@@ -187,12 +187,12 @@ public slots:
 	bool setShaders(struct VDir*);
 	void clearShaders();
 	VideoShader* shaders();
-	QSize contentSize() const;
 
 signals:
 	void created();
 	void started();
 	void texSwapped();
+	void contentSizeChanged(const QSize&);
 
 private slots:
 	void doStop();
@@ -204,6 +204,7 @@ private:
 	void dequeue();
 	void dequeueAll(bool keep = false);
 	void recenterLayers();
+	void cacheContentSize();
 
 	std::array<std::array<uint32_t, 0x100000>, 3> m_buffers;
 	QList<uint32_t*> m_free;
@@ -241,6 +242,7 @@ private:
 	QList<qint64> m_frametimes;
 	QList<qint64> m_starttimes;
 	bool m_drawFrametimes = false;
+	QSize m_cachedContentSize;
 };
 
 }

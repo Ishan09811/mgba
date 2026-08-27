@@ -225,6 +225,7 @@ DisplayGL::DisplayGL(const QSurfaceFormat& format, QWidget* parent)
 		resizePainter();
 		emit drawingStarted();
 	});
+	connect(m_painter.get(), &PainterGL::contentSizeChanged, this, &DisplayGL::setContentSize);
 	m_drawThread.start();
 }
 
@@ -276,8 +277,6 @@ void DisplayGL::startDrawing(std::shared_ptr<CoreController> controller) {
 		show();
 		m_gl->reset();
 	}
-
-	QTimer::singleShot(8, this, &DisplayGL::updateContentSize);
 }
 
 bool DisplayGL::highestCompatible(QSurfaceFormat& format) {
@@ -406,14 +405,12 @@ void DisplayGL::unpauseDrawing() {
 		if (!m_gl && shouldDisableUpdates()) {
 			setUpdatesEnabled(false);
 		}
-		QMetaObject::invokeMethod(this, "updateContentSize", Qt::QueuedConnection);
 	}
 }
 
 void DisplayGL::forceDraw() {
 	if (m_hasStarted) {
 		QMetaObject::invokeMethod(m_painter.get(), "forceDraw");
-		QMetaObject::invokeMethod(this, "updateContentSize", Qt::QueuedConnection);
 	}
 }
 
@@ -484,7 +481,6 @@ void DisplayGL::setVideoScale(int scale) {
 
 void DisplayGL::setBackgroundImage(const QImage& image) {
 	QMetaObject::invokeMethod(m_painter.get(), "setBackgroundImage", Q_ARG(const QImage&, image));
-	QMetaObject::invokeMethod(this, "updateContentSize", Qt::QueuedConnection);
 }
 
 void DisplayGL::resizeEvent(QResizeEvent* event) {
@@ -519,8 +515,8 @@ void DisplayGL::setVideoProxy(std::shared_ptr<VideoProxy> proxy) {
 	m_painter->setVideoProxy(std::move(proxy));
 }
 
-void DisplayGL::updateContentSize() {
-	QMetaObject::invokeMethod(m_painter.get(), "contentSize", Qt::BlockingQueuedConnection, Q_RETURN_ARG(QSize, m_cachedContentSize));
+void DisplayGL::setContentSize(const QSize& size) {
+	m_cachedContentSize = size;
 }
 
 int DisplayGL::framebufferHandle() {
@@ -672,6 +668,7 @@ void PainterGL::destroy() {
 
 	free(m_backend);
 	m_backend = nullptr;
+	m_cachedContentSize = QSize();
 }
 
 void PainterGL::setContext(std::shared_ptr<CoreController> context) {
@@ -705,6 +702,7 @@ void PainterGL::resizeContext() {
 	}
 	recenterLayers();
 	m_dims = size;
+	cacheContentSize();
 }
 
 void PainterGL::setMessagePainter(MessagePainter* messagePainter) {
@@ -716,6 +714,18 @@ void PainterGL::recenterLayers() {
 		return;
 	}
 	VideoBackendRecenter(m_backend, std::max(1U, m_context->videoScale()));
+}
+
+void PainterGL::cacheContentSize() {
+	unsigned width, height;
+	VideoBackendGetFrameSize(m_backend, &width, &height);
+	QSize size{saturateCast<int>(width),
+	           saturateCast<int>(height)};
+	if (size == m_cachedContentSize) {
+		return;
+	}
+	m_cachedContentSize = size;
+	emit contentSizeChanged(size);
 }
 
 void PainterGL::resize(const QSize& size) {
@@ -949,6 +959,7 @@ void PainterGL::performDraw() {
 	if (m_buffer) {
 		m_backend->setImage(m_backend, VIDEO_LAYER_IMAGE, m_buffer);
 	}
+	cacheContentSize();
 	m_backend->drawFrame(m_backend);
 	if (m_showOSD && m_messagePainter && m_paintDev && !glContextHasBug(OpenGLBug::IG4ICD_CRASH)) {
 		m_painter.begin(m_paintDev.get());
@@ -1099,13 +1110,6 @@ VideoShader* PainterGL::shaders() {
 	return &m_shader;
 }
 
-QSize PainterGL::contentSize() const {
-	unsigned width, height;
-	VideoBackendGetFrameSize(m_backend, &width, &height);
-	return {saturateCast<int>(width),
-	        saturateCast<int>(height)};
-}
-
 int PainterGL::glTex() {
 #if defined(BUILD_GLES2) || defined(BUILD_GLES3)
 	if (supportsShaders()) {
@@ -1144,6 +1148,7 @@ void PainterGL::setBackgroundImage(const QImage& image) {
 	} else {
 		m_background = QImage();
 	}
+	cacheContentSize();
 
 	if (!m_started) {
 		m_gl->doneCurrent();
