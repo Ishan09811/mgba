@@ -34,6 +34,17 @@
             android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask" />
 
+        <provider
+            android:authorities="org.mgba_emu.mgba.documents"
+            android:name="org.mgba_emu.mgba.providers.AppDataDocumentProvider"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <service android:name=".services.LoggerService" android:process=":logger_service"/>
     </application>
 </manifest>
