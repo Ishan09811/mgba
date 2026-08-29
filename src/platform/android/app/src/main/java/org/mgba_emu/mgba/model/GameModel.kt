@@ -2,10 +2,13 @@
 package org.mgba_emu.mgba.model
 
 import android.net.Uri
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.Serializable
 import org.mgba_emu.mgba.core.Platform
 import org.mgba_emu.mgba.utils.UriSerializer
 
+@Parcelize
 @Serializable
 data class GameModel(
     @Serializable(with = UriSerializer::class) var uri: Uri,
@@ -16,4 +19,4 @@ data class GameModel(
     var code: String? = null,
     var platform: Platform? = null,
     var lastPlayed: Long = 0L
-)
+) : Parcelable

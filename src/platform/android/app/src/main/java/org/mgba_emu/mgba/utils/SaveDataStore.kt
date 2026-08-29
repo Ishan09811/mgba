@@ -11,16 +11,15 @@ object SaveDataStore {
         File(mGBAApplication.context.getExternalFilesDir(null), "saves").apply { mkdirs() }
     }
 
-    private fun fileFor(gameCode: String): File {
-        val safeCode = gameCode.filter { it.isLetterOrDigit() }.ifEmpty { "UNKNOWN" }
-        return File(saveDir, "$safeCode.sav")
+    private fun fileFor(fileName: String): File {
+        return File(saveDir, "$fileName.sav")
     }
 
-    fun load(gameCode: String): ByteArray {
-        return fileFor(gameCode).safeReadBytes()
+    fun load(fileName: String): ByteArray {
+        return fileFor(fileName).safeReadBytes()
     }
 
-    fun save(gameCode: String, saveBytes: ByteArray): Boolean {
-        return fileFor(gameCode).writeBytesAtomically(saveBytes)
+    fun save(fileName: String, saveBytes: ByteArray): Boolean {
+        return fileFor(fileName).writeBytesAtomically(saveBytes)
     }
 }

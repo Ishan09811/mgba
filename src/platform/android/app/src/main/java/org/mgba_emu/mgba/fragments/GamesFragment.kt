@@ -87,7 +87,7 @@ class GamesFragment : Fragment() {
         }
 
         val intent = Intent(requireContext(), EmulationActivity::class.java).apply {
-            putExtra("gameUri", game.uri.toString())
+            putExtra("game", game)
         }
         startActivity(intent)
     }

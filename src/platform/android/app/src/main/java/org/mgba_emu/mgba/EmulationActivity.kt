@@ -9,13 +9,13 @@ import android.view.View
 import android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import org.mgba_emu.mgba.core.Core
 import org.mgba_emu.mgba.databinding.ActivityEmulationBinding
 import org.mgba_emu.mgba.input.InputState
+import org.mgba_emu.mgba.model.GameModel
 import org.mgba_emu.mgba.renderer.gl.EmulationThread
 import org.mgba_emu.mgba.renderer.gl.FrameBuffer
 import org.mgba_emu.mgba.renderer.gl.OpenGLRenderer
@@ -30,7 +30,7 @@ class EmulationActivity : AppCompatActivity() {
     private lateinit var glSurfaceView: GLSurfaceView
     private lateinit var frameBuffer: FrameBuffer
 
-    private var currentGameCode: String? = null
+    private var currentGame: GameModel? = null
 
     private var emulationThread: EmulationThread? = null
 
@@ -56,8 +56,19 @@ class EmulationActivity : AppCompatActivity() {
         setupGlSurface()
         setupTouchControls()
 
-        intent.getStringExtra("gameUri")?.let { uriString: String ->
-            loadRomFromUri(uriString.toUri())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            currentGame = intent.getParcelableExtra("game", GameModel::class.java)
+            currentGame?.let {
+                loadRomFromUri(it.uri)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra<GameModel>("game")?.let { game: GameModel? ->
+                game?.let {
+                    currentGame = game
+                    loadRomFromUri(it.uri)
+                }
+            }
         }
     }
 
@@ -93,7 +104,6 @@ class EmulationActivity : AppCompatActivity() {
 
             val ok = Core.loadRom(uri)
             if (ok) {
-                currentGameCode = Core.gameCode()
                 if (!GlobalConfig.skipBios) {
                     if (BiosStore.has(Core.getPlatform())) {
                         val biosBytes = BiosStore.load(Core.getPlatform())
@@ -104,7 +114,7 @@ class EmulationActivity : AppCompatActivity() {
                     }
                 }
 
-                val save = SaveDataStore.load(currentGameCode!!)
+                val save = SaveDataStore.load(currentGame?.fileName ?: "")
                 val saveOk = Core.loadSaveData(save)
                 if (!saveOk) {
                     // expected when playing for the first time
@@ -122,10 +132,10 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun persistSaveData() {
-        val code = currentGameCode ?: return
+        val fileName = currentGame?.fileName ?: return
         val saveBytes = Core.exportSaveData()
         if (saveBytes.isNotEmpty()) {
-            SaveDataStore.save(code, saveBytes)
+            SaveDataStore.save(fileName, saveBytes)
         }
     }
 
