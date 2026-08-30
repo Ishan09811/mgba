@@ -91,6 +91,7 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.oboe)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.renderscript.intrinsics.replacement.toolkit)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

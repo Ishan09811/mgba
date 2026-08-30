@@ -12,8 +12,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.mgba_emu.mgba.core.Core
 import org.mgba_emu.mgba.databinding.ActivityEmulationBinding
+import org.mgba_emu.mgba.fragments.EmulationLoadingFragment
 import org.mgba_emu.mgba.input.InputState
 import org.mgba_emu.mgba.model.GameModel
 import org.mgba_emu.mgba.renderer.gl.EmulationThread
@@ -30,6 +35,8 @@ class EmulationActivity : AppCompatActivity() {
     private lateinit var glSurfaceView: GLSurfaceView
     private lateinit var frameBuffer: FrameBuffer
 
+    private lateinit var loadingFragment: EmulationLoadingFragment
+
     private var currentGame: GameModel? = null
 
     private var emulationThread: EmulationThread? = null
@@ -39,6 +46,18 @@ class EmulationActivity : AppCompatActivity() {
         binding = ActivityEmulationBinding.inflate(layoutInflater)
         setContentView(binding.root)
         enableFullScreenImmersive()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            currentGame = intent.getParcelableExtra(GameModel.launchId, GameModel::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra<GameModel>(GameModel.launchId)?.let { game: GameModel? ->
+                currentGame = game
+            }
+        }
+
+        currentGame ?: finish()
+        showLoadingScreen()
 
         binding.fps.visibility = if (GlobalConfig.fpsCounter) View.VISIBLE else View.GONE
         if (GlobalConfig.fpsCounter) binding.fps.applySafePadding()
@@ -56,20 +75,7 @@ class EmulationActivity : AppCompatActivity() {
         setupGlSurface()
         setupTouchControls()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            currentGame = intent.getParcelableExtra("game", GameModel::class.java)
-            currentGame?.let {
-                loadRomFromUri(it.uri)
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra<GameModel>("game")?.let { game: GameModel? ->
-                game?.let {
-                    currentGame = game
-                    loadRomFromUri(it.uri)
-                }
-            }
-        }
+        loadRomFromUri(currentGame!!.uri)
     }
 
     private fun enableFullScreenImmersive() {
@@ -98,37 +104,74 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun loadRomFromUri(uri: Uri) {
-        try {
-            // stop any previously running emulation thread before loading
-            stopEmulationThread()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // stop any previously running emulation thread before loading
+                stopEmulationThread()
 
-            val ok = Core.loadRom(uri)
-            if (ok) {
-                if (!GlobalConfig.skipBios) {
-                    if (BiosStore.has(Core.getPlatform())) {
-                        val biosBytes = BiosStore.load(Core.getPlatform())
-                        if (!Core.loadBios(biosBytes)) {
-                            Toast.makeText(this, "Imported BIOS was rejected", Toast.LENGTH_SHORT)
-                                .show()
+                updateLoadingProgress("Loading ROM")
+                val ok = Core.loadRom(uri)
+                updateLoadingProgress("Checking BIOS")
+
+                if (ok) {
+                    if (!GlobalConfig.skipBios) {
+                        if (BiosStore.has(Core.getPlatform())) {
+                            val biosBytes = BiosStore.load(Core.getPlatform())
+                            if (!Core.loadBios(biosBytes)) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(
+                                        this@EmulationActivity,
+                                        "Imported BIOS was rejected",
+                                        Toast.LENGTH_SHORT
+                                    )
+                                        .show()
+                                }
+                            }
                         }
                     }
-                }
 
-                val save = SaveDataStore.load(currentGame?.fileName ?: "")
-                val saveOk = Core.loadSaveData(save)
-                if (!saveOk) {
-                    // expected when playing for the first time
-                    Log.w("EmulationActivity", "could not restore save data")
+                    updateLoadingProgress("Checking Saves")
+                    val save = SaveDataStore.load(currentGame?.fileName ?: "")
+                    val saveOk = Core.loadSaveData(save)
+                    if (!saveOk) {
+                        // expected when playing for the first time
+                        Log.w(LOG_TAG, "could not restore save data")
+                    }
+                    Core.reset()
+                    Log.i(LOG_TAG, "ROM loaded ${Core.gameTitle()}, ${Core.gameCode()}")
+                    startEmulationThread()
+                    hideLoadingScreen()
+                } else {
+                    Log.w(LOG_TAG, "Core rejected ROM")
                 }
-                Core.reset()
-                Log.i("EmulationActivity", "ROM loaded ${Core.gameTitle()}, ${Core.gameCode()}")
-                startEmulationThread()
-            } else {
-                Log.w("EmulationActivity", "Core rejected ROM")
+            } catch (e: Exception) {
+                Log.e(LOG_TAG, "Error reading ROM: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e("EmulationActivity", "Error reading ROM: ${e.message}")
         }
+    }
+
+    fun showLoadingScreen() {
+        currentGame?.let {
+            loadingFragment = EmulationLoadingFragment.newInstance(it)
+
+            supportFragmentManager
+                .beginTransaction()
+                .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+                .replace(R.id.emulation_fragment, loadingFragment)
+                .commit()
+        }
+    }
+
+    suspend fun updateLoadingProgress(progress : String) = withContext(Dispatchers.Main) {
+        loadingFragment.updateProgress(progress)
+    }
+
+    fun hideLoadingScreen() {
+        supportFragmentManager
+            .beginTransaction()
+            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
+            .remove(loadingFragment)
+            .commit()
     }
 
     private fun persistSaveData() {
@@ -185,6 +228,7 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val LOG_TAG = "EmulationActivity"
         private const val THREAD_JOIN_TIMEOUT_MS = 500L
     }
 }

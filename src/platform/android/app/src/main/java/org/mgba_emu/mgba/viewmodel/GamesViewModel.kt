@@ -30,6 +30,7 @@ class GamesViewModel : ViewModel() {
         loadGamesFromDisk(_gameList.value.isNotEmpty())
     }
 
+    // TODO(ishan09811): rewrite games directory searching logic
     fun loadGamesFromDisk(passive: Boolean = false) {
         val gameFolders = SearchLocationHelper.getGameFolders()
         if (gameFolders.isNotEmpty()) {

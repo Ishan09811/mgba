@@ -19,4 +19,8 @@ data class GameModel(
     var code: String? = null,
     var platform: Platform? = null,
     var lastPlayed: Long = 0L
-) : Parcelable
+) : Parcelable {
+    companion object {
+        val launchId = "game"
+    }
+}

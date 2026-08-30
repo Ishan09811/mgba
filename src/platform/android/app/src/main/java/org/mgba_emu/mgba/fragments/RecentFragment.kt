@@ -69,7 +69,7 @@ class RecentFragment : Fragment() {
         }
 
         val intent = Intent(requireContext(), EmulationActivity::class.java).apply {
-            putExtra("game", game)
+            putExtra(GameModel.launchId, game)
         }
         startActivity(intent)
     }

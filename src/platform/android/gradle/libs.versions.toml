@@ -12,6 +12,7 @@ kotlinxSerializationJson = "1.11.0"
 material = "1.14.0"
 navigationUiKtx = "2.9.8"
 oboe = "1.10.0"
+renderscriptIntrinsicsReplacementToolkit = "344be3f"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -27,6 +28,7 @@ androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 oboe = { module = "com.google.oboe:oboe", version.ref = "oboe" }
+renderscript-intrinsics-replacement-toolkit = { module = "com.github.android:renderscript-intrinsics-replacement-toolkit", version.ref = "renderscriptIntrinsicsReplacementToolkit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
