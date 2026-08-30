@@ -1,10 +1,18 @@
 
 package org.mgba_emu.mgba.utils
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.provider.DocumentsContract
+import android.util.Log
+import org.mgba_emu.mgba.providers.AppDataDocumentProvider
 import java.io.File
 import java.io.IOException
 
 object FileUtils {
+    const val LOG_TAG = "FileUtils"
+
     fun File.writeBytesAtomically(bytes: ByteArray): Boolean {
         if (bytes.isEmpty()) return true
         val tempFile = File(parentFile, "$name.tmp")
@@ -24,6 +32,36 @@ object FileUtils {
             this.readBytes()
         } catch (_: IOException) {
             ByteArray(0)
+        }
+    }
+
+    fun launchInternalDir(ctx: Context): Boolean {
+        if (!ctx.launchBrowseIntent(Intent.ACTION_VIEW)) {
+            if (!ctx.launchBrowseIntent()) {
+                if (!ctx.launchBrowseIntent(Intent.ACTION_OPEN_DOCUMENT_TREE)) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private fun Context.launchBrowseIntent(
+        action: String = "android.provider.action.BROWSE"
+    ): Boolean {
+        return try {
+            val intent = Intent(action).apply {
+                addCategory(Intent.CATEGORY_DEFAULT)
+                data = DocumentsContract.buildRootUri(
+                    AppDataDocumentProvider.AUTHORITY, AppDataDocumentProvider.ROOT_ID
+                )
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            }
+            startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            Log.e(LOG_TAG, "No activity found to handle $action intent")
+            false
         }
     }
 }

@@ -43,6 +43,14 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <org.mgba_emu.mgba.preferences.ViewInternalDirectoryPreference
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:padding="16dp"
+                    app:title="View Internal Directory"
+                    app:subtitle="Open internal directory of mGBA in file manager" />
+
                 <org.mgba_emu.mgba.preferences.SearchLocationsPreference
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

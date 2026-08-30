@@ -17,6 +17,8 @@ class AppDataDocumentProvider : DocumentsProvider() {
     companion object {
         const val ROOT_ID = "root"
 
+        const val AUTHORITY = "org.mgba_emu.mgba" + ".documents"
+
         private val DEFAULT_ROOT_PROJECTION = arrayOf(
             Root.COLUMN_ROOT_ID,
             Root.COLUMN_MIME_TYPES,
