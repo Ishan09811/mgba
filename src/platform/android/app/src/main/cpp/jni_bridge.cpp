@@ -66,7 +66,7 @@ Java_org_mgba_1emu_mgba_core_Core_nativeValidateRom(JNIEnv* env, jobject /*thiz*
     env->GetByteArrayRegion(romData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
 
     bool ok = g_core->validateRom(buffer.data(), buffer.size());
-    LOGI("nativeValidateRom: %zu bytes, success=%d", buffer.size(), ok);
+    LOGD("nativeValidateRom: %zu bytes, success=%d", buffer.size(), ok);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -82,6 +82,7 @@ Java_org_mgba_1emu_mgba_core_Core_nativeLoadRom(JNIEnv* env, jobject /*thiz*/, j
         LOGE("nativeLoadRom called before nativeInit");
         return JNI_FALSE;
     }
+
     jsize len = env->GetArrayLength(romData);
     std::vector<uint8_t> buffer(static_cast<size_t>(len));
     env->GetByteArrayRegion(romData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
@@ -157,7 +158,7 @@ Java_org_mgba_1emu_mgba_core_Core_nativeLoadSaveData(JNIEnv* env, jobject /*thiz
         env->GetByteArrayRegion(saveData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
     }
     bool ok = g_core->loadSaveData(buffer.data(), buffer.size());
-    LOGI("nativeLoadSaveData: %zu bytes, success=%d", buffer.size(), ok);
+    LOGD("nativeLoadSaveData: %zu bytes, success=%d", buffer.size(), ok);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 

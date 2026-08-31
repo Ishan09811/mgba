@@ -62,10 +62,10 @@ bool Core::validateRom(const uint8_t* data, size_t size) {
 	if (noIntroLookupCRC32(crc32, metadata) && !metadata.name.empty()) {
 		m_gameTitle = metadata.name;
 
-		LOGI("No-Intro match: title='%s' rom='%s' crc=%08X", metadata.name.c_str(), metadata.romName.c_str(),
+		LOGD("No-Intro match: title='%s' rom='%s' crc=%08X", metadata.name.c_str(), metadata.romName.c_str(),
 		     metadata.crc32);
 	} else {
-		LOGI("No-Intro: no match for CRC32=%08X", crc32);
+		LOGD("No-Intro: no match for CRC32=%08X", crc32);
 	}
 
 	return true;
