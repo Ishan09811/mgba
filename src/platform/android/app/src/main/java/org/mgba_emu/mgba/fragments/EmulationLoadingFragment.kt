@@ -9,13 +9,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import androidx.fragment.app.Fragment
 import coil3.ImageLoader
 import coil3.load
 import coil3.request.ImageRequest
-import coil3.request.SuccessResult
 import coil3.request.crossfade
 import coil3.request.error
 import coil3.request.fallback
