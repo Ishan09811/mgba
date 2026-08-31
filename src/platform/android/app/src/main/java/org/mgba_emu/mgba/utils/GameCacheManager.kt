@@ -17,7 +17,6 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import org.mgba_emu.mgba.mGBAApplication
 import org.mgba_emu.mgba.model.GameModel
-import kotlin.concurrent.thread
 
 object UriSerializer : KSerializer<Uri> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Uri", PrimitiveKind.STRING)

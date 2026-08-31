@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import kotlinx.coroutines.launch
 import org.mgba_emu.mgba.EmulationActivity
 import org.mgba_emu.mgba.adapters.GameAdapter
 import org.mgba_emu.mgba.databinding.FragmentRecentBinding
@@ -17,8 +18,6 @@ import org.mgba_emu.mgba.model.GameModel
 import org.mgba_emu.mgba.utils.GameCacheManager
 import org.mgba_emu.mgba.utils.applySafePadding
 import org.mgba_emu.mgba.viewmodel.GamesViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class RecentFragment : Fragment() {
 
