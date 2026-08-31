@@ -20,7 +20,7 @@ void Core::shutdown() {
 	m_audioPlayer.stop();
 }
 
-bool Core::quickLoadRom(const uint8_t* data, size_t size) {
+bool Core::validateRom(const uint8_t* data, size_t size) {
 	if (m_core != nullptr) {
 		unloadRom();
 	}

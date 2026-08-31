@@ -87,6 +87,7 @@ dependencies {
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
     implementation(libs.androidx.documentfile)
+    implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.coil)
     implementation(libs.coil.network.okhttp)
     implementation(libs.oboe)

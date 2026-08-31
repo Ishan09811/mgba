@@ -32,7 +32,7 @@
                 android:layout_marginHorizontal="24dp"
                 android:layout_marginTop="4dp"
                 android:layout_marginBottom="24dp"
-                android:text="Emulators will check these active directories automatically when updating library items."
+                android:text="mGBA will check these active directories automatically."
                 android:textAppearance="?attr/textAppearanceBodyMedium"
                 android:textColor="?attr/colorOutline" />
 

@@ -224,7 +224,6 @@ class EmulationActivity : AppCompatActivity() {
         super.onDestroy()
         persistSaveData()
         stopEmulationThread()
-        Core.shutdown()
     }
 
     companion object {

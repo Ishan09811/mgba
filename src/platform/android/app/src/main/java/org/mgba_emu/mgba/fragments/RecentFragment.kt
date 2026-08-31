@@ -58,7 +58,7 @@ class RecentFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        viewModel.loadGamesFromDisk()
+        viewModel.loadRoms()
     }
 
     private fun launchEmulationActivity(game: GameModel) {

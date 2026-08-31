@@ -3,9 +3,7 @@ package org.mgba_emu.mgba.core
 
 import android.content.Context
 import android.net.Uri
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import android.util.Log
 import org.mgba_emu.mgba.mGBAApplication
 import org.mgba_emu.mgba.utils.GlobalConfig
 import java.io.ByteArrayOutputStream
@@ -62,14 +60,14 @@ object Core {
         initialized = false
     }
 
-    fun quickLoadRom(uri: Uri): Boolean {
+    fun validateRom(uri: Uri): Boolean {
         check(initialized) { "Core.init() must succeed before loadRom()" }
         val romBytes = mGBAApplication.context.contentResolver.openInputStream(uri)?.use { input ->
             val output = ByteArrayOutputStream()
             input.copyTo(output)
             output.toByteArray()
         } ?: return false
-        val ok = nativeQuickLoadRom(romBytes)
+        val ok = nativeValidateRom(romBytes)
         if (ok) gameVersion = "v${readRomVersion(romBytes, isGba())}"
         return ok
     }
@@ -135,34 +133,34 @@ object Core {
     fun loadBios(biosBytes: ByteArray): Boolean = nativeLoadBios(biosBytes)
 
     fun initNoIntroDB(context: Context) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val database = File(context.getExternalFilesDir(null), "database").apply { mkdirs() }
-            val datFile = File(database, "nointro.dat")
-            val dbFile = File(database, "nointro.db").apply { createNewFile() }
+        val database = File(context.getExternalFilesDir(null), "database").apply { mkdirs() }
+        val datFile = File(database, "nointro.dat")
+        val dbFile = File(database, "nointro.db").apply { createNewFile() }
 
-            if (dbFile.exists() && dbFile.readBytes().isNotEmpty()) {
-                nativeInitNoIntroDB("", dbFile.absolutePath)
-                if (datFile.exists()) datFile.delete()
-                return@launch
+        if (dbFile.exists() && dbFile.readBytes().isNotEmpty()) {
+            if (!nativeInitNoIntroDB("", dbFile.absolutePath)) {
+                Log.e("Core", "nativeInitNoIntroDB Failed")
             }
+            if (datFile.exists()) datFile.delete()
+            return
+        }
 
-            if (!datFile.exists()) {
-                context.assets.open("nointro.dat").use { input ->
-                    datFile.outputStream().use { outputStream ->
-                        input.copyTo(outputStream)
-                    }
+        if (!datFile.exists()) {
+            context.assets.open("nointro.dat").use { input ->
+                datFile.outputStream().use { outputStream ->
+                    input.copyTo(outputStream)
                 }
             }
-
-            nativeInitNoIntroDB(datFile.absolutePath, dbFile.absolutePath)
         }
+
+        nativeInitNoIntroDB(datFile.absolutePath, dbFile.absolutePath)
     }
 
     private external fun nativeInit(): Boolean
     private external fun nativeShutdown()
     private external fun nativeLoadRom(romData: ByteArray, skipBios: Boolean, rtcEnable: Boolean): Boolean
     private external fun nativeLoadBios(biosData: ByteArray): Boolean
-    private external fun nativeQuickLoadRom(romData: ByteArray): Boolean
+    private external fun nativeValidateRom(romData: ByteArray): Boolean
     private external fun nativeReset()
     private external fun nativeRunFrame()
     private external fun nativeGetVideoBuffer(outPixels: IntArray)

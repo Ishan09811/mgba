@@ -8,11 +8,16 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.mgba_emu.mgba.EmulationActivity
 import org.mgba_emu.mgba.adapters.GameAdapter
 import org.mgba_emu.mgba.databinding.FragmentGamesBinding
@@ -21,8 +26,7 @@ import org.mgba_emu.mgba.utils.GameCacheManager
 import org.mgba_emu.mgba.utils.SearchLocationHelper
 import org.mgba_emu.mgba.utils.applySafePadding
 import org.mgba_emu.mgba.viewmodel.GamesViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.google.android.material.R as MaterialR
 
 class GamesFragment : Fragment() {
 
@@ -46,7 +50,6 @@ class GamesFragment : Fragment() {
             }
             requireContext().contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             SearchLocationHelper.saveFolderUri(it)
-            viewModel.loadGames(listOf(it), clearExisting = false)
         }
     }
 
@@ -69,14 +72,55 @@ class GamesFragment : Fragment() {
         binding.gamesList.adapter = gameAdapter
         binding.gamesList.applySafePadding()
 
+        binding.swipeRefreshLayout.apply {
+            setProgressBackgroundColorSchemeColor(
+                MaterialColors.getColor(
+                    binding.swipeRefreshLayout,
+                    MaterialR.attr.colorPrimaryFixed
+                )
+            )
+
+            setColorSchemeColors(
+                MaterialColors.getColor(
+                    binding.swipeRefreshLayout,
+                    MaterialR.attr.colorOnPrimary
+                )
+            )
+
+            setOnRefreshListener {
+                viewModel.loadRoms()
+            }
+        }
+
         binding.add.setOnClickListener {
             folderPickerLauncher.launch(null)
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isLoading.collect {
+                binding.swipeRefreshLayout.isRefreshing = it
+            }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.gameList.collect { gamesList ->
                 gameAdapter.submitList(gamesList)
             }
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.swipeRefreshLayout) { view, insets ->
+            val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
+
+            val defaultStartOffset = 0
+            val defaultEndOffset = (64 * view.resources.displayMetrics.density).toInt()
+
+            binding.swipeRefreshLayout.setProgressViewOffset(
+                false,
+                defaultStartOffset + statusBarHeight,
+                defaultEndOffset + statusBarHeight
+            )
+
+            insets
         }
     }
 
@@ -94,7 +138,7 @@ class GamesFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        viewModel.checkUpdatedList()
+        viewModel.loadRoms()
     }
 
     override fun onDestroyView() {

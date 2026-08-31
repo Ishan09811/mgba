@@ -1,180 +1,136 @@
 
 package org.mgba_emu.mgba.viewmodel
 
+import android.content.Context
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
+import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.mgba_emu.mgba.mGBAApplication
-import org.mgba_emu.mgba.core.Core
-import org.mgba_emu.mgba.model.GameModel
-import org.mgba_emu.mgba.utils.GameCacheManager
-import org.mgba_emu.mgba.utils.IconMetadataHelper.getIconUrl
-import org.mgba_emu.mgba.utils.SearchLocationHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.mgba_emu.mgba.core.Core
+import org.mgba_emu.mgba.mGBAApplication
+import org.mgba_emu.mgba.model.GameModel
+import org.mgba_emu.mgba.utils.IconMetadataHelper.getIconUrl
+import org.mgba_emu.mgba.utils.SearchLocationHelper
 
 class GamesViewModel : ViewModel() {
     private val _gameList = MutableStateFlow<List<GameModel>>(emptyList())
     val gameList: StateFlow<List<GameModel>> = _gameList
-    var isLoading: Boolean = false
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val coreMutex = Mutex()
+
+    private val supportedExtensions = setOf("gb", "gba", "gbc", "sgb") // TODO: zip?
 
     init {
-        loadGamesFromDisk()
+        loadRoms()
     }
 
-    fun checkUpdatedList() {
-        loadGamesFromDisk(_gameList.value.isNotEmpty())
-    }
+    fun loadRoms() {
+        if (_isLoading.value) return
+        if (!Core.init()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _isLoading.value = true
 
-    // TODO(ishan09811): rewrite games directory searching logic
-    fun loadGamesFromDisk(passive: Boolean = false) {
-        val gameFolders = SearchLocationHelper.getGameFolders()
-        if (gameFolders.isNotEmpty()) {
-            val persistedUris = mGBAApplication.context.contentResolver.persistedUriPermissions.map { it.uri }
-            val validGameFolders = gameFolders.filter { persistedUris.contains(it) }
-            if (validGameFolders.isNotEmpty()) {
-                loadGames(validGameFolders, clearExisting = true, passive)
-            } else {
-                _gameList.value = emptyList()
+            val context = mGBAApplication.context
+            val folderUris = SearchLocationHelper.getGameFolders()
+
+            val searchJobs = folderUris.map { folderUri ->
+                async { fastSearchRoms(context, folderUri) }
             }
-        } else {
-            _gameList.value = emptyList()
+
+            val allFoundFiles = searchJobs.awaitAll().flatten()
+
+            val gameModels = allFoundFiles.mapNotNull { (fileUri, fileName) ->
+                coreMutex.withLock {
+                    if (Core.validateRom(fileUri)) {
+                        val platform = Core.getPlatform()
+                        val title = Core.gameTitle()
+
+                        GameModel(
+                            uri = fileUri,
+                            fileName = fileName,
+                            code = Core.gameCode(),
+                            iconUrl = getIconUrl(title, platform),
+                            platform = platform,
+                            title = title,
+                            version = Core.gameVersion
+                        )
+                    } else {
+                        null
+                    }
+                }
+            }
+
+            _gameList.value = gameModels
+            _isLoading.value = false
         }
     }
 
-    fun loadGames(gameFolders: List<Uri>, clearExisting: Boolean, passive: Boolean = false) {
-        viewModelScope.launch(Dispatchers.IO) {
-            if (isLoading) return@launch
-            isLoading = true
-            val newlyFoundGames = mutableListOf<GameModel>()
+    private suspend fun fastSearchRoms(context: Context, treeUri: Uri): List<Pair<Uri, String>> =
+        withContext(Dispatchers.IO) {
+            val result = mutableListOf<Pair<Uri, String>>()
+            val resolver = context.contentResolver
 
-            for (treeUri in gameFolders) {
-                val documentFile = DocumentFile.fromTreeUri(mGBAApplication.context, treeUri)
+            fun traverse(directoryUri: Uri) {
+                try {
+                    val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+                        treeUri,
+                        DocumentsContract.getDocumentId(directoryUri)
+                    )
 
-                if (documentFile != null && documentFile.isDirectory) {
-                    documentFile.listFiles().forEach { file ->
-                        val fileName = file.name
+                    val projection = arrayOf(
+                        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                        DocumentsContract.Document.COLUMN_MIME_TYPE
+                    )
 
-                        if (fileName != null && (
-                                    fileName.endsWith(".gba", true) ||
-                                            fileName.endsWith(".gbc", true) ||
-                                            fileName.endsWith(".gb", true) ||
-                                            fileName.endsWith(".zip", true))
-                        ) {
-                            val cachedGame = GameCacheManager.getGame(file.uri, fileName)
-                            newlyFoundGames.add(
-                                cachedGame ?: GameModel(
-                                    uri = file.uri,
-                                    fileName = fileName,
-                                    title = null,
-                                    version = null
-                                )
-                            )
+                    resolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                        val idIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                        val nameIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                        val mimeIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+
+                        while (cursor.moveToNext()) {
+                            val docId = cursor.getString(idIndex)
+                            val name = cursor.getString(nameIndex) ?: continue
+                            val mime = cursor.getString(mimeIndex)
+                            val childUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+
+                            if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                                traverse(childUri) // Recurse into subdirectories
+                            } else {
+                                val extension = name.substringAfterLast('.', "").lowercase()
+                                if (supportedExtensions.contains(extension)) {
+                                    result.add(Pair(childUri, name))
+                                }
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
 
-            val sortedList = newlyFoundGames.sortedBy { it.fileName.lowercase() }.toMutableList()
-
-            if (passive) {
-                val metadataChanged = processMetadata(sortedList)
-                val currentUris = _gameList.value.map { it.uri.toString() }
-                val newUris = sortedList.map { it.uri.toString() }
-
-                if (metadataChanged || currentUris != newUris) {
-                    withContext(Dispatchers.Main) {
-                        _gameList.value = sortedList
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    isLoading = false
-                }
-                return@launch
-            } else {
-                withContext(Dispatchers.Main) {
-                    if (clearExisting) {
-                        _gameList.value = emptyList()
-                    }
-                    _gameList.value = sortedList
-                }
-            }
-
-            loadGamesMetadata()
-        }
-    }
-
-    private fun processMetadata(workingList: MutableList<GameModel>): Boolean {
-        var listStructureChanged = false
-        val iterator = workingList.iterator()
-
-        while (iterator.hasNext()) {
-            val element = iterator.next()
-            if (element.title.isNullOrEmpty()) {
-                if (!Core.init()) continue
-                if (!Core.quickLoadRom(element.uri)) {
-                    iterator.remove()
-                    listStructureChanged = true
-                    continue
-                }
-
-                val platform = Core.getPlatform()
-
-                element.code = Core.gameCode()
-                element.title = Core.gameTitle()
-                element.version = Core.gameVersion
-                element.iconUrl = getIconUrl(element.title ?: "", platform)
-                element.platform = platform
-                GameCacheManager.saveGame(element)
-                listStructureChanged = true
-            }
-        }
-        return listStructureChanged
-    }
-
-    private suspend fun loadGamesMetadata() {
-        val currentList = _gameList.value.toList()
-
-        for (element in currentList) {
-            if (element.title.isNullOrEmpty()) {
-                if (!Core.init()) continue
-                if (!Core.quickLoadRom(element.uri)) {
-                    withContext(Dispatchers.Main) {
-                        _gameList.value = _gameList.value.filter { it.uri != element.uri }
-                    }
-                    continue
-                }
-
-                val gameCode = Core.gameCode()
-                val gameTitle = Core.gameTitle()
-                val platform = Core.getPlatform()
-                val iconUrl = getIconUrl(gameTitle, platform)
-
-                val updatedGame = element.copy(
-                    title = gameTitle,
-                    code = gameCode,
-                    version = Core.gameVersion,
-                    iconUrl = iconUrl,
-                    platform = platform
+            try {
+                val rootDocUri = DocumentsContract.buildDocumentUriUsingTree(
+                    treeUri,
+                    DocumentsContract.getTreeDocumentId(treeUri)
                 )
-
-                GameCacheManager.saveGame(updatedGame)
-
-                withContext(Dispatchers.Main) {
-                    _gameList.value = _gameList.value.map {
-                        if (it.uri == updatedGame.uri) updatedGame else it
-                    }
-                }
+                traverse(rootDocUri)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        }
 
-        withContext(Dispatchers.Main) {
-            isLoading = false
+            return@withContext result
         }
-    }
 }

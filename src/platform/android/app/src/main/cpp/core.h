@@ -50,7 +50,7 @@ public:
     void shutdown();
 
     bool loadRom(const uint8_t* data, size_t size, bool skipBios, bool rtcEnable);
-    bool quickLoadRom(const uint8_t* data, size_t size);
+    bool validateRom(const uint8_t* data, size_t size);
     void unloadRom();
     void reset();
 

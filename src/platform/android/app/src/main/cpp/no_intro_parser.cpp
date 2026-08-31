@@ -5,6 +5,7 @@ extern "C" {
 }
 
 #include "no_intro_parser.h"
+#include "log/log.h"
 #include <cstring>
 
 static NoIntroDB* g_noIntroDB = nullptr;
@@ -34,7 +35,7 @@ bool noIntroInit(const char* databasePath, const char* datPath) {
 		return false;
 	}
 
-	if (databasePath && databasePath[0] == '\0') {
+	if (datPath && datPath[0] == '\0') {
 		return true;
 	}
 
