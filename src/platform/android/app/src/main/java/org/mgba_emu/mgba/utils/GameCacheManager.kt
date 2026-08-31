@@ -5,6 +5,9 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -14,6 +17,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import org.mgba_emu.mgba.mGBAApplication
 import org.mgba_emu.mgba.model.GameModel
+import kotlin.concurrent.thread
 
 object UriSerializer : KSerializer<Uri> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("Uri", PrimitiveKind.STRING)
@@ -47,11 +51,13 @@ object GameCacheManager {
     }
 
     fun saveGame(game: GameModel) {
-        try {
-            val jsonString = jsonConfig.encodeToString(game)
-            prefs.edit {
-                putString(game.uri.toString(), jsonString)
-            }
-        } catch (_: Exception) {}
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val jsonString = jsonConfig.encodeToString(game)
+                prefs.edit {
+                    putString(game.uri.toString(), jsonString)
+                }
+            } catch (_: Exception) {}
+        }
     }
 }

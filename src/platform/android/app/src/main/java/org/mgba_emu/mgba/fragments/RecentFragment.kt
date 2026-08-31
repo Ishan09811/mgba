@@ -64,9 +64,7 @@ class RecentFragment : Fragment() {
     private fun launchEmulationActivity(game: GameModel) {
         game.lastPlayed = System.currentTimeMillis()
 
-        lifecycleScope.launch(Dispatchers.IO) {
-            GameCacheManager.saveGame(game)
-        }
+        GameCacheManager.saveGame(game)
 
         val intent = Intent(requireContext(), EmulationActivity::class.java).apply {
             putExtra(GameModel.launchId, game)

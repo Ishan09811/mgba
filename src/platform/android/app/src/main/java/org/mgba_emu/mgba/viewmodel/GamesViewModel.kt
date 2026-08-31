@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import org.mgba_emu.mgba.core.Core
 import org.mgba_emu.mgba.mGBAApplication
 import org.mgba_emu.mgba.model.GameModel
+import org.mgba_emu.mgba.utils.GameCacheManager
 import org.mgba_emu.mgba.utils.IconMetadataHelper.getIconUrl
 import org.mgba_emu.mgba.utils.SearchLocationHelper
 
@@ -46,18 +47,18 @@ class GamesViewModel : ViewModel() {
             val folderUris = SearchLocationHelper.getGameFolders()
 
             val searchJobs = folderUris.map { folderUri ->
-                async { fastSearchRoms(context, folderUri) }
+                async { searchRoms(context, folderUri) }
             }
 
             val allFoundFiles = searchJobs.awaitAll().flatten()
 
             val gameModels = allFoundFiles.mapNotNull { (fileUri, fileName) ->
                 coreMutex.withLock {
-                    if (Core.validateRom(fileUri)) {
+                    GameCacheManager.getGame(fileUri, fileName) ?: if (Core.validateRom(fileUri)) {
                         val platform = Core.getPlatform()
                         val title = Core.gameTitle()
 
-                        GameModel(
+                         val game = GameModel(
                             uri = fileUri,
                             fileName = fileName,
                             code = Core.gameCode(),
@@ -66,6 +67,9 @@ class GamesViewModel : ViewModel() {
                             title = title,
                             version = Core.gameVersion
                         )
+
+                        GameCacheManager.saveGame(game)
+                        game
                     } else {
                         null
                     }
@@ -77,7 +81,7 @@ class GamesViewModel : ViewModel() {
         }
     }
 
-    private suspend fun fastSearchRoms(context: Context, treeUri: Uri): List<Pair<Uri, String>> =
+    private suspend fun searchRoms(context: Context, treeUri: Uri): List<Pair<Uri, String>> =
         withContext(Dispatchers.IO) {
             val result = mutableListOf<Pair<Uri, String>>()
             val resolver = context.contentResolver

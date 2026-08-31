@@ -90,6 +90,13 @@ class GamesFragment : Fragment() {
             setOnRefreshListener {
                 viewModel.loadRoms()
             }
+
+            post {
+                if (_binding == null) {
+                    return@post
+                }
+                binding.swipeRefreshLayout.isRefreshing = viewModel.isLoading.value
+            }
         }
 
         binding.add.setOnClickListener {
@@ -126,9 +133,7 @@ class GamesFragment : Fragment() {
 
     private fun launchEmulationActivity(game: GameModel) {
         game.lastPlayed = System.currentTimeMillis()
-        lifecycleScope.launch(Dispatchers.IO) {
-            GameCacheManager.saveGame(game)
-        }
+        GameCacheManager.saveGame(game)
 
         val intent = Intent(requireContext(), EmulationActivity::class.java).apply {
             putExtra(GameModel.launchId, game)
