@@ -70,23 +70,15 @@ class EmulationLoadingFragment : Fragment() {
                 val loader = ImageLoader(requireContext())
                 val request = ImageRequest.Builder(requireContext())
                     .data(game?.iconUrl ?: "")
+                    .fallback(R.mipmap.ic_launcher)
+                    .error(R.mipmap.ic_launcher)
                     .build()
 
                 val result = loader.execute(request)
-                if (result is SuccessResult) {
-                    val bitmap = result.image.toBitmap().copy(Bitmap.Config.ARGB_8888, false)
+                val bitmap = result.image?.toBitmap()?.copy(Bitmap.Config.ARGB_8888, false)
+                bitmap?.let {
                     withContext(Dispatchers.Main) {
                         binding.backgroundImage.setImageBitmap(Toolkit.blur(bitmap, 15))
-                    }
-                } else {
-                    val bitmap = ContextCompat.getDrawable(
-                        requireContext(),
-                        R.mipmap.ic_launcher)?.toBitmap(config = Bitmap.Config.ARGB_8888)
-
-                    bitmap?.let {
-                        withContext(Dispatchers.Main) {
-                            binding.backgroundImage.setImageBitmap(Toolkit.blur(bitmap, 15))
-                        }
                     }
                 }
             }
