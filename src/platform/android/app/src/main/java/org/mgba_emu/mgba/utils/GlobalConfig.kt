@@ -20,16 +20,16 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     const val PREFS_NAME = "app_prefs"
 
     // EMULATION
-    @Volatile var autoSave: Boolean = true
     @Volatile var fastForward: Boolean = false
-    @Volatile var fastForwardMultiplier: Int = 0 // 0 = max
     @Volatile var skipBios: Boolean = false
-    @Volatile var idleOptimization: String = "detect" // "ignore", "detect", "remove"
 
-    // VIDEO
-    @Volatile var frameskip: Int = 0 // 0 to 10
+    // DISPLAY
     @Volatile var fpsCounter: Boolean = false
-    @Volatile var aspectRatio: String = "keep" // "keep", "stretch"
+    @Volatile var screenOrientation: Int = 0 // 0 (Landscape Auto), 1 (Landscape Force), 2 (Landscape Force Reverse), 3 (Portrait Auto), 4 (Portrait Force), 5 (Portrait Force Reverse)
+
+    // RENDERER
+    @Volatile var frameLimit: Int = 0 // 0 (59.7), 1 (60), 2 (120)
+    @Volatile var graphicsApi: Int = 0 // 0 (Open GL ES)
 
     // AUDIO
     @Volatile var volume: Int = 256 // max volume = 256
@@ -37,21 +37,20 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
     // SYSTEM
     @Volatile var rtcEnable: Boolean = true // Real Time Clock
-    @Volatile var rewindEnable: Boolean = false
 
     fun initialize(context: Context) {
         CoroutineScope(Dispatchers.IO).launch {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            autoSave = prefs.getBoolean("pref_auto_save", true)
             fastForward = prefs.getBoolean("pref_fast_forward", false)
-            fastForwardMultiplier = prefs.getInt("pref_ff_multiplier", 0)
             skipBios = prefs.getBoolean("pref_skip_bios", false)
-            idleOptimization = prefs.getString("pref_idle_opt", "detect") ?: "detect"
 
-            // Video
-            frameskip = prefs.getInt("pref_frameskip", 0)
+            // Display
             fpsCounter = prefs.getBoolean("pref_fps_counter", false)
-            aspectRatio = prefs.getString("pref_aspect_ratio", "keep") ?: "keep"
+            screenOrientation = prefs.getInt("pref_screen_orientation", 0)
+
+            // Renderer
+            graphicsApi = prefs.getInt("pref_graphics_api", 0)
+            frameLimit = prefs.getInt("pref_frame_limit", 0)
 
             // Audio
             volume = prefs.getInt("pref_volume", 256)
@@ -59,7 +58,6 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
 
             // System
             rtcEnable = prefs.getBoolean("pref_rtc", true)
-            rewindEnable = prefs.getBoolean("pref_rewind", false)
             prefs.registerOnSharedPreferenceChangeListener(this@GlobalConfig)
         }
     }
@@ -67,24 +65,22 @@ object GlobalConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
         when (key) {
             // Emulation
-            "pref_auto_save" -> autoSave = sharedPreferences.getBoolean(key, true)
             "pref_fast_forward" -> fastForward = sharedPreferences.getBoolean(key, false)
-            "pref_ff_multiplier" -> fastForwardMultiplier = sharedPreferences.getInt(key, 0)
             "pref_skip_bios" -> skipBios = sharedPreferences.getBoolean(key, false)
-            "pref_idle_opt" -> idleOptimization = sharedPreferences.getString(key, "detect") ?: "detect"
 
-            // Video
-            "pref_frameskip" -> frameskip = sharedPreferences.getInt(key, 0)
+            // Display
             "pref_fps_counter" -> fpsCounter = sharedPreferences.getBoolean(key, false)
-            "pref_aspect_ratio" -> aspectRatio = sharedPreferences.getString(key, "keep") ?: "keep"
+            "pref_screen_orientation" -> screenOrientation = sharedPreferences.getInt("pref_screen_orientation", 0)
+
+            // Renderer
+            "pref_graphics_api" -> graphicsApi = sharedPreferences.getInt("pref_graphics_api", 0)
+            "pref_frame_limit" -> frameLimit = sharedPreferences.getInt("pref_frame_limit", 0)
 
             // Audio
-            "pref_volume" -> volume = sharedPreferences.getInt(key, 256)
             "pref_mute" -> mute = sharedPreferences.getBoolean(key, false)
 
             // System
             "pref_rtc" -> rtcEnable = sharedPreferences.getBoolean(key, true)
-            "pref_rewind" -> rewindEnable = sharedPreferences.getBoolean(key, false)
         }
     }
 }

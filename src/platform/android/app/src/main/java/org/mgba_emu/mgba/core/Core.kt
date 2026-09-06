@@ -15,7 +15,6 @@ import android.net.Uri
 import android.util.Log
 import org.mgba_emu.mgba.mGBAApplication
 import org.mgba_emu.mgba.utils.GlobalConfig
-import java.io.ByteArrayOutputStream
 import java.io.File
 
 enum class Platform(val value: Int) {
@@ -49,9 +48,6 @@ object Core {
     var height: Int = 0
         private set
 
-    private const val GBA_VERSION_OFFSET = 0xBC
-    private const val GB_VERSION_OFFSET = 0x14C
-
     fun init(): Boolean {
         if (initialized) return true
         initialized = nativeInit()
@@ -71,33 +67,30 @@ object Core {
 
     fun validateRom(uri: Uri): Boolean {
         check(initialized) { "Core.init() must succeed before loadRom()" }
-        val romBytes = mGBAApplication.context.contentResolver.openInputStream(uri)?.use { input ->
-            val output = ByteArrayOutputStream()
-            input.copyTo(output)
-            output.toByteArray()
-        } ?: return false
-        val ok = nativeValidateRom(romBytes)
-        if (ok) gameVersion = "v${readRomVersion(romBytes, isGba())}"
+
+        val parcel = mGBAApplication.context.contentResolver.openFileDescriptor(uri, "r")
+        val romFd = parcel?.detachFd() ?: return false
+        parcel.close()
+
+        val ok = nativeValidateRom(romFd)
         return ok
     }
 
     fun loadRom(uri: Uri): Boolean {
         check(initialized) { "Core.init() must succeed before loadRom()" }
-        val romBytes = mGBAApplication.context.contentResolver.openInputStream(uri)?.use { input ->
-            val output = ByteArrayOutputStream()
-            input.copyTo(output)
-            output.toByteArray()
-        } ?: return false
-        val ok = nativeLoadRom(romBytes, GlobalConfig.skipBios, GlobalConfig.rtcEnable)
+
+        val parcel = mGBAApplication.context.contentResolver.openFileDescriptor(uri, "r")
+        val romFd = parcel?.detachFd() ?: return false
+        parcel.close()
+
+        val ok = nativeLoadRom(romFd, GlobalConfig.rtcEnable)
         if (ok) {
-            applyConfigs()
+            nativeSetAudioMuted(GlobalConfig.mute)
             width = nativeGetWidth()
             height = nativeGetHeight()
             if (width > 0 && height > 0) {
                 videoBuffer = IntArray(width * height)
             }
-
-            gameVersion = "v${readRomVersion(romBytes, isGba())}"
         }
         return ok
     }
@@ -118,23 +111,9 @@ object Core {
     fun gameTitle(): String = nativeGetGameTitle()
     fun gameCode(): String = nativeGetGameCode()
 
-    fun readRomVersion(romBytes: ByteArray, isGba: Boolean): Int {
-        val offset = if (isGba) GBA_VERSION_OFFSET else GB_VERSION_OFFSET
-        if (romBytes.size <= offset) return 0
-        return romBytes[offset].toInt() and 0xFF
-    }
-
     fun getPlatform(): Platform {
         return Platform.from(nativeGetPlatform())
     }
-
-    fun applyConfigs() {
-        nativeSetConfigInt("frameskip", GlobalConfig.frameskip)
-        nativeSetConfigInt("volume", GlobalConfig.volume)
-        nativeSetConfigInt("mute", if (GlobalConfig.mute) 1 else 0)
-    }
-
-    fun isGba(): Boolean = getPlatform() == Platform.GBA
 
     fun loadSaveData(saveBytes: ByteArray): Boolean = nativeLoadSaveData(saveBytes)
     fun exportSaveData(): ByteArray = nativeExportSaveData()
@@ -167,9 +146,9 @@ object Core {
 
     private external fun nativeInit(): Boolean
     private external fun nativeShutdown()
-    private external fun nativeLoadRom(romData: ByteArray, skipBios: Boolean, rtcEnable: Boolean): Boolean
+    private external fun nativeLoadRom(romFd: Int, rtcEnable: Boolean): Boolean
     private external fun nativeLoadBios(biosData: ByteArray): Boolean
-    private external fun nativeValidateRom(romData: ByteArray): Boolean
+    private external fun nativeValidateRom(romFd: Int): Boolean
     private external fun nativeReset()
     private external fun nativeRunFrame()
     private external fun nativeGetVideoBuffer(outPixels: IntArray)
@@ -181,7 +160,6 @@ object Core {
     private external fun nativeGetGameTitle(): String
     private external fun nativeGetGameCode(): String
     private external fun nativeGetPlatform(): Int
-    private external fun nativeSetConfigInt(key: String, value: Int)
-    private external fun nativeSetConfigString(key: String, value: String)
+    private external fun nativeSetAudioMuted(muted: Boolean)
     private external fun nativeInitNoIntroDB(datPath: String, dbPath: String): Boolean
 }

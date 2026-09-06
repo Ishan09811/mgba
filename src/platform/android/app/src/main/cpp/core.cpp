@@ -29,14 +29,12 @@ void Core::shutdown() {
 	m_audioPlayer.stop();
 }
 
-bool Core::validateRom(const uint8_t* data, size_t size) {
+bool Core::validateRom(int romFd) {
 	if (m_core != nullptr) {
 		unloadRom();
 	}
 
-	m_romBuffer.assign(data, data + size);
-
-	VFile* vf = VFileFromConstMemory(m_romBuffer.data(), m_romBuffer.size());
+	VFile* vf = VFileFromFD(romFd);
 	if (!vf) {
 		LOGE("VFileFromConstMemory failed");
 		return false;
@@ -80,13 +78,12 @@ bool Core::validateRom(const uint8_t* data, size_t size) {
 	return true;
 }
 
-bool Core::loadRom(const uint8_t* data, size_t size, bool skipBios, bool rtcEnable) {
+bool Core::loadRom(int romFd, bool rtcEnable) {
 	if (m_core != nullptr) {
 		unloadRom();
 	}
 
-	m_romBuffer.assign(data, data + size);
-	VFile* vf = VFileFromConstMemory(m_romBuffer.data(), m_romBuffer.size());
+	VFile* vf = VFileFromFD(romFd);
 	if (!vf) {
 		LOGE("VFileFromConstMemory failed");
 		return false;
@@ -108,10 +105,10 @@ bool Core::loadRom(const uint8_t* data, size_t size, bool skipBios, bool rtcEnab
 
 	mCoreInitConfig(m_core, nullptr);
 
-	mCoreConfigSetIntValue(&m_core->config, "skipBios", skipBios ? 1 : 0);
-	mCoreConfigSetIntValue(&m_core->config, "hw.rtc", rtcEnable ? 1 : 0);
+	if (!rtcEnable) {
+		m_core->rtc.override = RTC_FIXED;
+	}
 
-	LOGI("Config Applied -> Key: '%s' = %d", "skipBios", skipBios ? 1 : 0);
 	LOGI("Config Applied -> Key: '%s' = %d", "hw.rtc", rtcEnable ? 1 : 0);
 
 	unsigned width, height;
@@ -198,7 +195,6 @@ void Core::unloadRom() {
 	m_pendingAudioRate.store(0, std::memory_order_release);
 	m_coreSampleRate = 0;
 	m_sampleRate = 0;
-	m_romBuffer.clear();
 	m_videoBuffer.clear();
 }
 
@@ -368,16 +364,6 @@ bool Core::loadBios(const uint8_t* data, size_t size) {
 		vf->close(vf);
 	}
 	return ok;
-}
-
-void Core::setConfigInt(const char* key, int value) {
-	if (!m_core) return;
-	mCoreConfigSetIntValue(&m_core->config, key, value);
-}
-
-void Core::setConfigString(const char* key, const char* value) {
-	if (!m_core) return;
-	mCoreConfigSetValue(&m_core->config, key, value);
 }
 
 void Core::setAudioMuted(bool mute) {

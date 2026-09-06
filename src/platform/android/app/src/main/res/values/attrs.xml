@@ -9,10 +9,28 @@
   -->
 
 <resources>
+    <attr name="title" format="string" />
+    <attr name="subtitle" format="string" />
+    <attr name="key" format="string" />
+
+    <attr name="defaultValue" format="boolean|integer" />
+
+    <attr name="entries" format="reference" />
+    <attr name="entryValues" format="reference" />
+
     <declare-styleable name="SwitchPreference">
-        <attr name="title" format="string" />
-        <attr name="subtitle" format="string" />
-        <attr name="key" format="string" />
-        <attr name="defaultValue" format="boolean" />
+        <attr name="title" />
+        <attr name="subtitle" />
+        <attr name="key" />
+        <attr name="defaultValue" />
+    </declare-styleable>
+
+    <declare-styleable name="IntListPreference">
+        <attr name="title" />
+        <attr name="subtitle" />
+        <attr name="key" />
+        <attr name="defaultValue" />
+        <attr name="entries" />
+        <attr name="entryValues" />
     </declare-styleable>
 </resources>

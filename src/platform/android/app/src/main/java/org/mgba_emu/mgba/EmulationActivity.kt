@@ -9,6 +9,7 @@
 
 package org.mgba_emu.mgba
 
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.opengl.GLSurfaceView
 import android.os.Build
@@ -55,6 +56,16 @@ class EmulationActivity : AppCompatActivity() {
         binding = ActivityEmulationBinding.inflate(layoutInflater)
         setContentView(binding.root)
         enableFullScreenImmersive()
+
+        requestedOrientation = when (GlobalConfig.screenOrientation) {
+            0 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            1 -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            2 -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+            3 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            4 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            5 -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+            else -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             currentGame = intent.getParcelableExtra(GameModel.launchId, GameModel::class.java)

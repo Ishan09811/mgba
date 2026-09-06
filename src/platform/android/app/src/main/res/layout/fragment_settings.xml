@@ -106,16 +106,6 @@
                     android:layout_height="wrap_content"
                     android:background="?attr/selectableItemBackground"
                     android:padding="16dp"
-                    app:key="pref_auto_save"
-                    app:defaultValue="true"
-                    app:title="Auto Save"
-                    app:subtitle="" />
-
-                <org.mgba_emu.mgba.preferences.SwitchPreference
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:padding="16dp"
                     app:key="pref_fast_forward"
                     app:defaultValue="false"
                     app:title="Fast Forward"
@@ -130,7 +120,6 @@
                     app:defaultValue="false"
                     app:title="Skip Bios"
                     app:subtitle="" />
-
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -140,7 +129,7 @@
             android:layout_marginHorizontal="32dp"
             android:layout_marginTop="32dp"
             android:layout_marginBottom="8dp"
-            android:text="Video"
+            android:text="Display"
             android:textAppearance="?attr/textAppearanceTitleSmall"
             android:textColor="?attr/colorPrimary" />
 
@@ -165,6 +154,61 @@
                     app:defaultValue="false"
                     app:title="Show FPS"
                     app:subtitle="" />
+
+                <org.mgba_emu.mgba.preferences.IntListPreference
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    app:title="Screen Orientation"
+                    app:key="pref_screen_orientation"
+                    app:defaultValue="0"
+                    app:entries="@array/screen_orientation_entries"
+                    app:entryValues="@array/screen_orientation_values" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="32dp"
+            android:layout_marginTop="32dp"
+            android:layout_marginBottom="8dp"
+            android:text="Renderer"
+            android:textAppearance="?attr/textAppearanceTitleSmall"
+            android:textColor="?attr/colorPrimary" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="?attr/materialCardViewFilledStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            app:cardCornerRadius="24dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <org.mgba_emu.mgba.preferences.IntListPreference
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    app:title="API"
+                    app:key="pref_graphics_api"
+                    app:defaultValue="0"
+                    app:entries="@array/graphics_api_entries"
+                    app:entryValues="@array/graphics_api_values" />
+
+
+                <org.mgba_emu.mgba.preferences.IntListPreference
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="16dp"
+                    app:title="Frame Limit"
+                    app:key="pref_frame_limit"
+                    app:defaultValue="0"
+                    app:entries="@array/frame_limit_entries"
+                    app:entryValues="@array/frame_limit_values" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -236,6 +280,5 @@
                     app:subtitle="" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

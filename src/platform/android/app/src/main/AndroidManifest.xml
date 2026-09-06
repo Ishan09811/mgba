@@ -40,7 +40,6 @@
             android:name=".EmulationActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
-            android:screenOrientation="sensorLandscape"
             android:launchMode="singleTask" />
 
         <provider

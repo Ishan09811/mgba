@@ -59,8 +59,8 @@ public:
     static bool init();
     void shutdown();
 
-    bool loadRom(const uint8_t* data, size_t size, bool skipBios, bool rtcEnable);
-    bool validateRom(const uint8_t* data, size_t size);
+    bool loadRom(int romFd, bool rtcEnable);
+    bool validateRom(int romFd);
     void unloadRom();
     void reset();
 
@@ -84,16 +84,11 @@ public:
 	int getPlatform();
 
     bool loadBios(const uint8_t* data, size_t size);
-
-    void setConfigInt(const char* key, int value);
-    void setConfigString(const char* key, const char* value);
-
     void setAudioMuted(bool mute);
 
 private:
 	mCore* m_core = nullptr;
 	OboeAudioPlayer m_audioPlayer;
-	std::vector<uint8_t> m_romBuffer;
 	std::vector<uint32_t> m_videoBuffer;
 	// only populated and used when color_t is 16-bit; empty and unused otherwise.
 	std::vector<uint32_t> m_expandedBuffer;

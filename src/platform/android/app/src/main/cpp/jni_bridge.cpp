@@ -59,45 +59,28 @@ Java_org_mgba_1emu_mgba_core_Core_nativeShutdown(JNIEnv* env, jobject /*thiz*/) 
 }
 
 JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeValidateRom(JNIEnv* env, jobject /*thiz*/, jbyteArray romData) {
-	if (romData == nullptr) {
-		LOGE("nativeValidateRom called with a null romData array!");
-		return JNI_FALSE;
-	}
-
+Java_org_mgba_1emu_mgba_core_Core_nativeValidateRom(JNIEnv* env, jobject /*thiz*/, jint romFd) {
     std::lock_guard<std::mutex> lock(g_coreMutex);
     if (g_core == nullptr) {
         LOGE("nativeValidateRom called before nativeInit");
         return JNI_FALSE;
     }
-    jsize len = env->GetArrayLength(romData);
-    std::vector<uint8_t> buffer(static_cast<size_t>(len));
-    env->GetByteArrayRegion(romData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
 
-    bool ok = g_core->validateRom(buffer.data(), buffer.size());
-    LOGD("nativeValidateRom: %zu bytes, success=%d", buffer.size(), ok);
+    bool ok = g_core->validateRom(romFd);
+    LOGD("nativeValidateRom: success=%d", ok);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeLoadRom(JNIEnv* env, jobject /*thiz*/, jbyteArray romData, jboolean skipBios, jboolean rtcEnable) {
-	if (romData == nullptr) {
-		LOGE("nativeLoadRom called with a null romData array!");
-		return JNI_FALSE;
-	}
-
+Java_org_mgba_1emu_mgba_core_Core_nativeLoadRom(JNIEnv* env, jobject /*thiz*/, jint romFd, jboolean rtcEnable) {
     std::lock_guard<std::mutex> lock(g_coreMutex);
     if (g_core == nullptr) {
         LOGE("nativeLoadRom called before nativeInit");
         return JNI_FALSE;
     }
 
-    jsize len = env->GetArrayLength(romData);
-    std::vector<uint8_t> buffer(static_cast<size_t>(len));
-    env->GetByteArrayRegion(romData, 0, len, reinterpret_cast<jbyte*>(buffer.data()));
-
-    bool ok = g_core->loadRom(buffer.data(), buffer.size(), skipBios, rtcEnable);
-    LOGI("nativeLoadRom: %zu bytes, success=%d", buffer.size(), ok);
+    bool ok = g_core->loadRom(romFd, rtcEnable);
+    LOGI("nativeLoadRom: success=%d", ok);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -204,21 +187,9 @@ Java_org_mgba_1emu_mgba_core_Core_nativeGetPlatform(JNIEnv* env, jobject /*thiz*
 }
 
 JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigInt(JNIEnv* env, jobject thiz, jstring jKey, jint value) {
-	JniString key(env, jKey);
-    g_core->setConfigInt(key, value);
-    if (strcmp(key, "mute") == 0) {
-        g_core->setAudioMuted(value == 1);
-    }
-
-    LOGI("Config Applied -> Key: '%s' = %d", key.c_str(), value);
-}
-
-JNIEXPORT void JNICALL
-Java_org_mgba_1emu_mgba_core_Core_nativeSetConfigString(JNIEnv* env, jobject thiz, jstring jKey, jstring jValue) {
-	JniString key(env, jKey);
-	JniString value(env, jValue);
-    g_core->setConfigString(key, value);
+Java_org_mgba_1emu_mgba_core_Core_nativeSetAudioMuted(JNIEnv* env, jobject thiz, jboolean muted) {
+    std::lock_guard<std::mutex> lock(g_coreMutex);
+    g_core->setAudioMuted(muted);
 }
 
 JNIEXPORT jboolean JNICALL
